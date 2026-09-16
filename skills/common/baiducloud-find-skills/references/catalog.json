@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "marketplace": "baiducloud-skills",
+  "plugins": [
+    {
+      "name": "baiducloud-core",
+      "description": "Core authentication, bce-cli usage, safe OpenAPI-only requests, and Skill discovery for Baidu Intelligent Cloud.",
+      "author": {"name": "BaiduCloud Skills Contributors"},
+      "homepage": "https://github.com/baidubce/baiducloud-skills",
+      "repository": "https://github.com/baidubce/baiducloud-skills",
+      "license": "Apache-2.0",
+      "keywords": ["baiducloud", "bce", "cli", "auth", "sts", "skill-discovery"],
+      "category": "core",
+      "installation": "INSTALLED_BY_DEFAULT"
+    },
+    {
+      "name": "baiducloud-storage",
+      "description": "BOS object storage operations through the official bcecmd client.",
+      "author": {"name": "BaiduCloud Skills Contributors"},
+      "homepage": "https://github.com/baidubce/baiducloud-skills",
+      "repository": "https://github.com/baidubce/baiducloud-skills",
+      "license": "Apache-2.0",
+      "keywords": ["baiducloud", "bos", "bcecmd", "object-storage", "bucket", "object"],
+      "category": "storage",
+      "installation": "AVAILABLE"
+    },
+    {
+      "name": "baiducloud-qianfan",
+      "description": "Baidu Qianfan large-model platform tasks through the official qianfan CLI and its bundled agent skills.",
+      "author": {"name": "BaiduCloud Skills Contributors"},
+      "homepage": "https://github.com/baidubce/baiducloud-skills",
+      "repository": "https://github.com/baidubce/baiducloud-skills",
+      "license": "Apache-2.0",
+      "keywords": ["baiducloud", "qianfan", "千帆", "qianfan-cli", "llm", "chat", "model", "inference"],
+      "category": "qianfan",
+      "installation": "AVAILABLE"
+    }
+  ],
+  "skills": [
+    {"name": "baiducloud-auth", "plugin": "baiducloud-core", "domain": "core", "summary": "AK/SK and STS authentication through bce-cli", "keywords": ["auth", "login", "credential", "profile", "sts", "ak", "sk"]},
+    {"name": "baiducloud-cli", "plugin": "baiducloud-core", "domain": "core", "summary": "Use and troubleshoot services and operations supported by the official bce-cli", "keywords": ["bce", "cli", "service", "operation", "command", "profile", "region", "output", "pager", "dry-run", "debug", "help", "discover"]},
+    {"name": "baiducloud-find-skills", "plugin": "baiducloud-core", "domain": "core", "summary": "Discover and install exact BaiduCloud skills", "keywords": ["find", "discover", "install", "skill"]},
+    {"name": "baiducloud-openapi", "plugin": "baiducloud-core", "domain": "core", "summary": "Safely invoke CFC and other documented OpenAPI-only services through the tested runtime", "keywords": ["openapi", "api", "signing", "signature", "authentication", "request", "https", "sts", "cfc", "函数计算", "cloud-function-compute", "serverless", "function", "invocation", "xflow", "workflow"]},
+    {"name": "baiducloud-bos", "plugin": "baiducloud-storage", "domain": "storage", "summary": "Use the official bcecmd client for Baidu BOS object storage", "keywords": ["bos", "bcecmd", "bucket", "object", "upload", "download", "sync", "storage", "sts", "multipart"]},
+    {"name": "baiducloud-qianfan", "plugin": "baiducloud-qianfan", "domain": "qianfan", "summary": "Route Baidu Qianfan large-model platform tasks to the official qianfan CLI and its bundled skills", "keywords": ["qianfan", "千帆", "qianfan-cli", "llm", "chat", "inference", "model", "profile", "usage", "connect"]}
+  ],
+  "external_sources": [
+    {
+      "repo": "baidubce/baiducloud-aiops-skills",
+      "homepage": "https://github.com/baidubce/baiducloud-aiops-skills",
+      "description": "Baidu Intelligent Cloud AIOps skills: read-only diagnosis and audit for BCC, VPC/CSN/DNS networking, APM observability, BLS logging, and BOS storage.",
+      "skills": [
+        {"name": "baiducloud-vm-diagnosis", "domain": "compute", "summary": "从虚机内部只读诊断 Linux 虚机的内存/OOM、JVM、网络丢包、磁盘 IO、负载与 OS 健康", "keywords": ["vm", "虚机", "诊断", "diagnosis", "linux", "oom", "memory", "jvm", "network", "io", "load", "cpu", "sysom", "bcc"]},
+        {"name": "baiducloud-bos", "domain": "storage", "preferred": true, "summary": "百度智能云对象存储 BOS 集成：上传/下载/删除/复制、列举、签名 URL、图片处理、目录同步", "keywords": ["bos", "对象存储", "object-storage", "上传", "下载", "签名url", "图片处理", "bcecmd", "sync", "bucket"]},
+        {"name": "baiducloud-apm", "domain": "ops-management", "summary": "通过 bce apm CLI 诊断 APM 应用与 LLM 负载、查询 trace 与指标、只读管理告警策略", "keywords": ["apm", "应用性能监控", "llm", "trace", "span", "metrics", "告警", "alarm", "observability", "bce-cli"]},
+        {"name": "baiducloud-openclaw-apm-monitoring", "domain": "ops-management", "summary": "配置并验证 OpenClaw 遥测经 diagnostics-otel 插件上报到百度云 BCM APM", "keywords": ["openclaw", "apm", "bcm", "otel", "opentelemetry", "trace", "监控", "telemetry", "gateway"]},
+        {"name": "baiducloud-opencode-apm-monitoring", "domain": "ops-management", "summary": "通过 opencode-plugin-otel 配置并验证 OpenCode 遥测上报到百度云 BCM APM", "keywords": ["opencode", "apm", "bcm", "otel", "opentelemetry", "otlp", "trace", "监控", "telemetry"]},
+        {"name": "baiducloud-bce-bls-skill", "domain": "ops-management", "summary": "安装并验证百度智能云日志服务 BLS 官方 AI Agent skill（bce-bls）", "keywords": ["bls", "日志服务", "log", "bce-bls", "安装器", "installer", "logging"]},
+        {"name": "baiducloud-csn-route-relationship-audit", "domain": "network", "summary": "只读审计 CSN 路由表、关联/学习关系与路由条目，输出拓扑、冲突与孤立引用报告", "keywords": ["csn", "云智能网", "路由", "route", "关联", "学习", "审计", "audit", "黑洞路由", "topology"]},
+        {"name": "baiducloud-csn-topology-status-audit", "domain": "network", "summary": "只读盘点 CSN 实例与已加载网络实例，生成跨地域拓扑与状态异常报告", "keywords": ["csn", "云智能网", "拓扑", "topology", "网络实例", "状态", "审计", "audit", "inventory"]},
+        {"name": "baiducloud-public-dns-record-audit", "domain": "network", "summary": "只读审计公网 DNS 域名与解析记录质量：重复记录、CNAME 冲突、TTL、MX、泛解析", "keywords": ["dns", "公网dns", "解析记录", "域名", "record", "cname", "ttl", "审计", "audit"]},
+        {"name": "baiducloud-privatezone-vpc-association-audit", "domain": "network", "summary": "只读审计内网 DNS PrivateZone 及其 VPC 关联，输出私有域到 VPC 关联拓扑与异常", "keywords": ["privatezone", "内网dns", "私有域", "vpc", "关联", "association", "审计", "audit"]},
+        {"name": "baiducloud-peer-connection-inventory-audit", "domain": "network", "summary": "只读盘点 VPC 对等连接实例：状态、带宽、计费、到期、DNS 同步与拓扑", "keywords": ["对等连接", "peer-connection", "peerconn", "vpc", "inventory", "盘点", "审计", "audit"]},
+        {"name": "baiducloud-peer-connectivity-diagnosis", "domain": "network", "summary": "只读诊断 VPC 对等连接不通/单向不通/IP端口不可达：路由、安全组、ACL 证据", "keywords": ["对等连接", "peer", "连通性", "connectivity", "诊断", "diagnosis", "路由", "安全组", "acl", "vpc"]},
+        {"name": "baiducloud-vpc-inventory-audit", "domain": "network", "summary": "只读盘点 VPC 及子网、路由表、安全组、ACL、弹性网卡，生成资产与拓扑报告", "keywords": ["vpc", "私有网络", "子网", "subnet", "路由表", "安全组", "acl", "eni", "inventory", "审计", "audit"]},
+        {"name": "baiducloud-vpc-security-policy-audit", "domain": "network", "summary": "只读审计 VPC 安全组/企业安全组/ACL：公网暴露、敏感端口、宽泛规则与优先级遮蔽", "keywords": ["vpc", "安全组", "security-group", "企业安全组", "acl", "公网暴露", "端口", "合规", "审计", "audit"]}
+      ]
+    },
+    {
+      "repo": "baiducloud-portal/baiducloud-skills",
+      "homepage": "https://github.com/baiducloud-portal/baiducloud-skills",
+      "description": "Baidu Qianfan large-model platform skills.",
+      "skills": [
+        {"name": "baiducloud-qianfan", "domain": "qianfan", "preferred": true, "summary": "Route Baidu Qianfan large-model platform tasks to the official qianfan CLI and its bundled skills", "keywords": ["qianfan", "千帆", "qianfan-cli", "llm", "chat", "inference", "model", "profile", "usage", "connect"]}
+      ]
+    }
+  ]
+}
