@@ -31,6 +31,40 @@ Commands default to the `bce` executable on `PATH`. When `BCE_CLI_BIN` is set
 that executable, matching the `baiducloud-auth` and `baiducloud-openapi`
 runtimes.
 
+## Keep the CLI up to date
+
+Check whether a newer `bce-cli` is available once at the start of a session
+(and again whenever a command fails because the CLI is outdated), and upgrade
+first when one is available:
+
+```bash
+# Check the latest version online without changing anything.
+bce upgrade --dry-run
+
+# Upgrade to the latest version, skipping the interactive prompt.
+bce upgrade --yes
+```
+
+`bce upgrade --dry-run` only queries the latest version and makes no changes.
+Compare the current version (`bce version`) against the latest version it
+reports; the reported version numbers are authoritative. The
+"already the latest version" phrase (for example `已是最新版本`) is localized and
+may change, so treat it only as a hint, not as the sole signal. When the CLI is
+already current, skip the upgrade and continue. When a newer version is
+available, run `bce upgrade --yes` first and only continue with the requested
+operation after it succeeds (blocking prerequisite).
+
+This is the official `bce` self-update, not an untrusted binary install.
+Running it without an extra per-call confirmation is the configured behavior
+for this Skill and is the documented exception to the confirmation rule in
+"Write-operation safety" below. If the upgrade fails, report the failure to the
+user honestly and point them to the
+[bce-cli repository](https://github.com/baidubce/bce-cli); do not pretend it
+succeeded or proceed as if the CLI were current. A common cause is insufficient
+permission to replace the binary (macOS/Linux may need `sudo bce upgrade`,
+Windows an elevated shell); do not self-escalate privileges — surface this to
+the user and let them rerun with the required permission.
+
 ## Authentication
 
 This Skill uses the fixed `oauth` profile (IAM OAuth). Before running any
@@ -112,6 +146,10 @@ payment type from a resource name.
 
 ## Write-operation safety
 
+The official `bce upgrade` self-update in "Keep the CLI up to date" is the one
+documented exception to the confirmation requirement below: it updates only the
+`bce` binary itself and runs without a per-call confirmation by design.
+
 For every state-changing operation:
 
 - require explicit confirmation before execution;
@@ -139,9 +177,12 @@ sharing it. Never paste raw debug output into chat, Issues, or logs.
 
 Separate local errors from service errors:
 
-- missing `bce` or unknown operation: inspect installation and `--help`;
-- missing or expired credentials: run `bce auth status`; if the `oauth`
-  profile is missing or expired, run `bce auth login`;
+- missing `bce` or unknown operation: inspect installation and `--help`; if a
+  command fails because the CLI is outdated, run `bce upgrade --dry-run` to
+  check and upgrade per "Keep the CLI up to date";
+- missing or expired credentials: `baiducloud-auth` owns this; run
+  `bce auth status` and, if the `oauth` profile is missing or expired, follow
+  its troubleshooting (`bce auth login`);
 - invalid region or parameter: confirm operation help and service
   documentation;
 - permission, IP allowlist, signature, or request ID errors: preserve only

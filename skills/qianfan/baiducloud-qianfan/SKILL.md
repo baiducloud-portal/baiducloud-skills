@@ -35,38 +35,135 @@ own browser OAuth login and its own local state under `~/.qianfan`; it is
 separate from the `bce-cli` `oauth` profile. Do not mix the two, and do not read
 or write one from the other.
 
-## Check the CLI
+## Onboarding: install the CLI and bundled skills
 
-Before using an unfamiliar command, verify the installed CLI and read its help:
+When this Skill triggers, bring the environment to a ready state with the
+following ordered flow. It is confirm-gated: detect first, then propose each
+state-changing step and run it only after explicit confirmation. Do not perform
+a silent or unattended install.
 
-```bash
-command -v qianfan
-qianfan --help
-qianfan <command> --help
-```
+**Positive identification of the official CLI.** Read these two complementary
+signals and decide via the tree below — they are not a strict AND; the tree says
+how to act on each combination. Use the exact package name from the README (do
+not invent it). The check uses only npm and the CLI itself — no OS-specific
+shell tools — so it works the same on every platform the CLI supports (see the
+README's platform matrix):
 
-If `qianfan` is missing, direct the user to the official
-[qianfan-cli repository](https://github.com/baidubce/qianfan-cli) and ask them
-to install it (it is published on npm; follow the repository README for the
-exact install command). Do not download an untrusted binary, do not install it
-on the user's behalf without confirmation, and never ask for credentials in
-chat. In offline environments the repository documents
-`QIANFAN_SKIP_POSTINSTALL=1` to skip the platform binary download.
+- `npm ls -g --depth=0 <official-package-from-README>` lists the official
+  package as installed. Under nvm/fnm/volta or a custom `--prefix` it can report
+  a false "not found", so treat a miss there as inconclusive, not as proof of
+  absence.
+- `qianfan --help` banner names the official package (use `--help`, which the
+  CLI always implements; `--version` only as an additional signal). This banner
+  is the sole discriminator between the official package and a different tool
+  that merely happens to be named `qianfan`, so it must be checked. It defends
+  against an accidental name collision, not against an adversarial binary that
+  deliberately prints the official banner.
 
-## Install the bundled agent skills
+**Listing the bundled skills (read-only).** A separate check from the two
+signals above: run the list subcommand of `qianfan +connect` (take its exact
+name/flags from `qianfan +connect --help`; a bare `qianfan +connect` may
+connect/install, so do not use it to list). Do not hardcode the skill names —
+enumerate from the CLI. Depending on the CLI version the output may expose the
+full available set plus which are connected, or only the connected ones; both
+step 1 and step 4 rely on this same read-only listing.
 
-The qianfan CLI carries its own agent skills and installs them into local agents
-(Comate, Claude Code, and others) with:
+1. **Detect (read-only, run immediately).** Run the two identification commands
+   and apply *Positive identification* above:
 
-```bash
-qianfan +connect
-```
+   ```bash
+   qianfan --help   # command-not-found here is a normal "not on PATH" signal, not an error
+   npm ls -g --depth=0 <official-package-from-README>
+   ```
 
-Prefer these bundled `qianfan-*` skills for actual Qianfan operations (login,
-model discovery, plan and default-model binding, inference, usage, diagnostics).
-They orchestrate `qianfan` commands only; they do not read local credentials or
-call Qianfan HTTP APIs directly. This Skill does not restate their contents; run
-`qianfan +connect` to keep them installed and current.
+   `qianfan --help` failing with command-not-found just means `qianfan` is not
+   on PATH; read that as "not runnable here", not as an error to fix. Decide from
+   the two results (check whether a `qianfan` actually runs first):
+
+   - `qianfan` is not on PATH and `npm ls -g` clearly misses (no version-manager
+     or custom-prefix in play that could make it a false negative): not installed
+     — proceed to the confirm-gated npm install.
+   - `qianfan` is not on PATH and `npm ls -g` misses but a version manager or
+     custom `--prefix` is active (possible false negative): inconclusive — re-run
+     the check under the active toolchain or ask the user to confirm before
+     deciding; do not install blindly.
+   - `qianfan` is not on PATH but `npm ls -g` lists the official package (global
+     npm bin not on PATH): installed but not usable — do not reinstall; tell the
+     user to add npm's global bin dir to PATH (`$(npm prefix -g)/bin` in POSIX
+     shells; on Windows it is the `npm prefix -g` directory itself), then
+     re-check.
+   - A `qianfan` runs but its `--help` banner is not the official CLI: it is a
+     different tool occupying the name — do not use it and do not silently
+     overwrite it. Combine with `npm ls -g`: if `npm ls -g` also lists the
+     official package, it is already installed but shadowed by that binary
+     earlier on PATH — reinstalling will not help; guide the user to fix PATH
+     order or remove/rename the shadowing entry, then re-check. If `npm ls -g`
+     does not list it, surface the name conflict to the user first; only after
+     they decide, proceed to the confirm-gated install of the official package.
+   - A `qianfan` runs and its banner is the official CLI: it is installed. Run
+     the read-only *Listing the bundled skills* check — no connecting here. If
+     the CLI exposes the full available set and **all** bundled `qianfan-*`
+     skills are already connected, skip onboarding and go straight to the task.
+     If any are missing — or the CLI reports only connected skills, so
+     completeness cannot be confirmed read-only — continue to step 4 and let its
+     idempotent connect settle it.
+
+2. **Install the official npm package, then confirm.** If the official package
+   is missing, direct the user to the official
+   [qianfan-cli repository](https://github.com/baidubce/qianfan-cli). Install it
+   only as the official npm package (`npm install -g <official-package-from-README>`)
+   — never a downloaded binary, a system package manager, or an unverified
+   `qianfan` already on PATH. Take the exact package name, install command, and
+   supported platforms from the repository README; do not invent them. Show the
+   command, explain that it changes the global environment, and wait for
+   explicit confirmation before running it on the user's behalf. Do not download
+   an untrusted binary and never ask for credentials in chat. In offline
+   environments the repository documents `QIANFAN_SKIP_POSTINSTALL=1` to skip
+   the platform binary download.
+
+3. **Verify the install.** `npm ls -g --depth=0 <official-package-from-README>`
+   listing the package is the primary success signal; then run `qianfan --help`
+   and confirm the banner names the official package. If `npm ls -g` lists it but
+   `qianfan --help` will not run (global npm bin not on PATH), that is the "add
+   npm's global bin to PATH" case from step 1, not a failed install — do not
+   reinstall.
+
+4. **Connect all the bundled agent skills, then confirm.** The qianfan CLI
+   carries its own agent skills and installs them into local agents (Comate,
+   Claude Code, and others) via `qianfan +connect`. The goal state is that
+   **every** bundled `qianfan-*` skill is connected, not just some:
+
+   - **Enumerate + detect (read-only):** run the *Listing the bundled skills*
+     check to see the bundled skills and which are already connected (reuse the
+     listing from step 1's final branch if it is still valid rather than
+     repeating it).
+   - **Diff (when the listing supports it):** if the list output distinguishes
+     the full available set from the connected set, compare them to find any
+     missing. If the CLI only reports connected skills (no full available list)
+     and names must not be hardcoded, skip the explicit diff and instead rely on
+     the connect action below.
+   - **Connect all (confirm-gated):** if any are missing, none are connected, or
+     completeness could not be confirmed by listing, running `qianfan +connect`
+     changes local state, so follow the confirm-then-execute rule in
+     [Safe execution](#safe-execution): preview the intent (use `--dry-run` if
+     supported), confirm, then run it once; do not add `-y/--yes` for the user.
+     Connect the full set, not a subset. Observe this run's output: if it reports
+     that nothing was added, the set was already complete.
+   - **Verify:** if the CLI exposes the full available set, re-list with the same
+     read-only list subcommand from the Enumerate step (not a bare
+     `qianfan +connect`, which may connect/install) and confirm every bundled
+     `qianfan-*` skill is present. If it only reports connected skills, do not
+     trigger a second confirm-gated connect just to verify — read completeness
+     from the Connect-all run's output above (nothing added = already complete).
+
+5. **Reload, then defer to the bundled skills.** Newly connected `qianfan-*`
+   skills usually need a new session or a host-agent reload before they are
+   picked up. Afterward, prefer these bundled skills for actual Qianfan
+   operations (login, model discovery, plan and default-model binding,
+   inference, usage, diagnostics). They orchestrate `qianfan` commands only;
+   they do not read local credentials or call Qianfan HTTP APIs directly. This
+   Skill does not restate their contents; re-run the step 4 detect/connect flow
+   to keep the full set installed and current.
 
 ## Command entry points
 
