@@ -4,8 +4,8 @@
 
 千帆（Qianfan）是百度的大模型平台。Qianfan CLI（`qianfan` 命令）把千帆的模型
 发现、文本推理、套餐（profile）与默认模型绑定、用量统计和诊断能力封装成 Agent
-可调用的工具箱。CLI 本身闭源发布（通过 npm 分发，支持 macOS 与 Windows
-x64/arm64），仓库内 `skills/` 目录下的 Agent Skills 文档开放贡献。
+可调用的工具箱。CLI 本身闭源发布（通过 npm 分发；支持的平台以 README 平台矩阵
+为准），仓库内 `skills/` 目录下的 Agent Skills 文档开放贡献。
 
 本 Skill 只做路由：真正的千帆操作应交给官方 `qianfan` CLI 及其通过
 `qianfan +connect` 安装的自带技能包。命令行为以安装的 CLI `--help` 为准，本索引仅
@@ -14,7 +14,13 @@ x64/arm64），仓库内 `skills/` 目录下的 Agent Skills 文档开放贡献�
 ## 仓库与安装
 
 - 官方仓库：https://github.com/baidubce/qianfan-cli
-- 安装：按仓库 README 操作（npm 发布）。安装完成后确认 `command -v qianfan`。
+- 安装：按仓库 README 操作（npm 发布）。校验只用 npm 与 CLI 本身、不依赖 OS 专有
+  命令，因此在 CLI 支持的各平台上一致（平台矩阵以 README 为准）。看两个互补信号、
+  按组合判断（并非强制同时满足）：`npm ls -g --depth=0 <官方包名>` 是否列出官方包
+  （nvm/fnm/volta 或自定义 `--prefix` 下可能假阴性，未命中不否定安装）；`qianfan
+  --help` banner 是否标识为官方包（用 `--help`，CLI 必然实现；`--version` 仅作附加
+  信号）。banner 为官方包即视为已安装；该 banner 是区分官方包与同名其他工具的唯一
+  判据，只防意外重名、不防恶意伪造 banner 的二进制。详细判定树见 SKILL.md。
 - 离线环境：`QIANFAN_SKIP_POSTINSTALL=1` 可跳过平台二进制下载。
 - 本地状态目录默认 `~/.qianfan`，可用 `QIANFAN_HOME` 指定其他目录；不要读取、
   复制或输出该目录内容。
