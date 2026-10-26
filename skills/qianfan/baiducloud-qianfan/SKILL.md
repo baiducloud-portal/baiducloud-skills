@@ -32,8 +32,46 @@ with the rest of this marketplace clear.
 
 Qianfan authentication is independent from `bce auth`. The `qianfan` CLI has its
 own browser OAuth login and its own local state under `~/.qianfan`; it is
-separate from the `bce-cli` `oauth` profile. Do not mix the two, and do not read
-or write one from the other.
+separate from the `bce-cli` `oauth` profile. Do not read or write one from the
+other by hand. The only supported bridge is `baiducloud-auth`'s
+`scripts/sync_qianfan.mjs`, which copies a finished `bce auth login` into
+`qianfan` automatically (no confirmation needed) after a `bce auth login` or
+`bce auth refresh`, or when Qianfan is not logged in; the browser login via
+`qianfan auth login`
+remains the alternative.
+
+## Account gate (mandatory)
+
+Before the first `qianfan` command of a task (inference, models, profile,
+usage, doctor, and so on), run the account check through the `baiducloud-auth`
+Skill: `node scripts/sync_qianfan.mjs check` in that Skill's directory. It is
+read-only and compares the account in `qianfan auth status --format json` with
+the account of the local `bce auth login`. If Qianfan is not logged in but bce
+is, `check` automatically adopts the bce login (no confirmation needed) and
+reports `auto_synced: true`; tell the user it happened.
+
+- Exit 0 (`match`, `skipped`, or auto-synced): continue.
+- Exit 3 after an auto-sync (`AGREEMENT_NOT_SIGNED`): the login was saved, but
+  the user must open the printed URL and sign the Qianfan agreement. Continue
+  once they have.
+- If the bce credentials are expired or about to expire, `check` renews them with
+  `bce auth refresh` itself before syncing (`bce_refreshed: true`). Only if that
+  refresh fails, ask the user to run `bce auth login` and run `check` again.
+- Exit 4 (`ACCOUNT_MISMATCH`): stop. Do not run any `qianfan` command. Tell the
+  user the two accounts differ (ids are masked), and ask them to log out first
+  (`node scripts/sync_qianfan.mjs logout` for Qianfan, `bce auth logout` for
+  bce), then run `bce auth login` as the intended account and sync again.
+  Never log out or switch accounts on the user's behalf.
+- Any other failure: report it and continue only if the user agrees.
+
+If a `qianfan` command later reports that the login expired ("登录已过期",
+`login expired`, or `CREDENTIAL_NOT_FOUND`), do not ask: run
+`sync_qianfan.mjs sync` through `baiducloud-auth`. It renews the bce credentials
+with `bce auth refresh` when needed, then renews the Qianfan login, and you retry
+the failed command once. `check` does the same proactively when it sees an
+expired Qianfan login.
+
+Once per task is enough; repeat it after any login, logout, or account switch.
 
 ## Onboarding: install the CLI and bundled skills
 

@@ -7,13 +7,13 @@ import { fileURLToPath } from "node:url";
 
 const SKILL_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CATALOG = path.join(SKILL_DIR, "references", "catalog.json");
-const DEFAULT_REPO = "baidubce/baiducloud-skills";
+const DEFAULT_REPO = "baiducloud-portal/baiducloud-skills";
 
 function loadEntries() {
   // Return every discoverable Skill, each annotated with its source repo.
   //
   // Skills declared in the catalog `skills` array ship from this repository
-  // (`baidubce/baiducloud-skills`). Skills declared under `external_sources`
+  // (`baiducloud-portal/baiducloud-skills`). Skills declared under `external_sources`
   // live in other Baidu Cloud repositories and carry that repo so `install`
   // can route `npx skills add` to the correct source.
   const catalog = JSON.parse(fs.readFileSync(CATALOG, "utf-8"));
@@ -146,4 +146,6 @@ function main(argv) {
   return 0;
 }
 
-process.exit(main(process.argv.slice(2)));
+// Set the exit code instead of calling process.exit(): exiting immediately can
+// truncate large stdout output written to a pipe before it is flushed.
+process.exitCode = main(process.argv.slice(2));

@@ -32,13 +32,41 @@ Before executing a request:
    profile's temporary credentials; never place credentials in URLs, request
    bodies, command arguments, logs, or chat messages.
 
-## Product references
+## Product references (resolved from BOS, not hardcoded)
 
-For CFC function management, invocation, versions, aliases, triggers, reserved
-concurrency, or XFLOW workflows, read `references/cfc.md` before constructing
-the request. The product reference provides endpoint selection and safety
-rules; verify the exact method, URI, and schema against the linked API page
-before every request.
+This Skill no longer hardcodes per-product references in the repo. The
+authoritative catalog of every product the 官网 doc site lists, plus each
+product's generated reference, lives on BOS and is refreshed daily:
+
+```
+https://portal-public.cdn.bcebos.com/baiducloud-skills/openapilist/
+  manifest.json          # all products + class (bce / nonbce / noapi) + guidance
+  references/<code>.md   # per-product API reference (BCE products)
+```
+
+Before constructing any request, resolve the target product against that
+manifest (zero-dependency, reads over HTTPS):
+
+```bash
+node scripts/resolve_product.mjs <PRODUCT_CODE>   # e.g. CFC, BOS, RDS
+node scripts/resolve_product.mjs --list           # catalog overview
+```
+
+The command returns one of three outcomes and you MUST act accordingly:
+
+- **bce** — standard BCE AK/SK. It prints the product's endpoints, auth, and the
+  full `references/<code>.md`; verify method/URI/schema against the linked page,
+  then execute via `scripts/openapi_runtime.mjs`.
+- **nonbce** — the product has an API but a non-BCE auth system (API Key / NGD /
+  JWT / appkey-sign). Do NOT call it through this runtime; tell the user the
+  product's API auth must be integrated separately and give the printed auth-doc link.
+- **noapi** — no public OpenAPI. Tell the user to operate in the product console
+  (the printed console/doc link).
+
+Override the data source with `BCE_OPENAPI_BOS_BASE` if needed. The script does
+not read local files: when BOS is unreachable, open the bundled
+`references/cfc.md` manually as an offline fallback; the BOS manifest is the
+source of truth.
 
 ## Credential sources
 

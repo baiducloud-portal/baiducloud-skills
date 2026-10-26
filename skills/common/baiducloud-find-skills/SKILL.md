@@ -15,8 +15,6 @@ node scripts/find_skills.mjs search bcc
 node scripts/find_skills.mjs search vm
 node scripts/find_skills.mjs install baiducloud-vm-diagnosis
 node scripts/find_skills.mjs install baiducloud-bos
-node scripts/find_skills.mjs install baiducloud-bos --repo baidubce/baiducloud-skills
-node scripts/find_skills.mjs install baiducloud-qianfan
-node scripts/find_skills.mjs install baiducloud-qianfan --repo baidubce/baiducloud-skills
+node scripts/find_skills.mjs install baiducloud-bos --repo baiducloud-portal/baiducloud-skills
 node scripts/find_skills.mjs status
 ```

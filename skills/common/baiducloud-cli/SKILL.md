@@ -184,7 +184,7 @@ Separate local errors from service errors:
   `bce auth status` and, if the `oauth` profile is missing or expired, follow
   its troubleshooting (`bce auth login`);
 - invalid region or parameter: confirm operation help and service
-  documentation;
+  documentation, retrieved through `baiducloud-docs` rather than from memory;
 - permission, IP allowlist, signature, or request ID errors: preserve only
   the non-secret error and request ID for cloud administrator/support
   troubleshooting;
