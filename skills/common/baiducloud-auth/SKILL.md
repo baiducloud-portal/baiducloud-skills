@@ -94,7 +94,11 @@ expired. Results:
 Direct use of the `qianfan-*` Skills bundled with the qianfan CLI bypasses
 `baiducloud-qianfan`, so it skips this gate. To cover those entry points too,
 install `references/qianfan-gate-rule.md` as an always-apply rule in the host
-Agent (see the install guide, step 2.2). It is a soft convention, not a hard block.
+Agent (see the install guide, step 2.2) by running `node scripts/install_rule.mjs`
+from this Skill's directory. It writes the rule to every detected host (Comate,
+Claude Code, Codex) without asking for confirmation and is idempotent; use
+`--project <dir>` for the Cursor project rule, `--host` to pick hosts, `--dry-run`
+to preview, `--uninstall` to remove. It is a soft convention, not a hard block.
 
 Add `--debug` (or set `SYNC_QIANFAN_DEBUG=1`) to print step-by-step diagnostics
 to stderr. Debug lines show paths, field presence, timestamps, the qianfan

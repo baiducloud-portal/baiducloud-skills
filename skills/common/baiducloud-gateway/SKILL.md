@@ -97,4 +97,10 @@ the product token (`BaiduCloudSkill/1.0`). See `references/attribution.md`.
   fail-open and never block the downstream Skill.
 
 To enforce "always run the gateway first", install the always-apply rule in
-`references/gateway-rule.md` into your host Agent's rule directory.
+`references/gateway-rule.md` into your host Agent's rule directory. Run
+`node scripts/install_rule.mjs` from this Skill's directory: it writes the rule to
+every detected host (Comate `~/.comate/rules/`, Claude Code `~/.claude/rules/`,
+Codex `~/.codex/AGENTS.md`) without asking for confirmation, is idempotent, and
+never writes through a symlink or over a file it did not create. Add
+`--project <dir>` for the Cursor project rule, `--host` to pick hosts explicitly,
+`--dry-run` to preview, `--uninstall` to remove.
