@@ -8,17 +8,15 @@
 
 ## Service Endpoint
 
-portal OpenAPI 的域名**不随 region 变化**，但测试环境与线上环境不同，必须显式指定：
+portal OpenAPI 的域名**不随 region 变化**，默认走 `cloud.baidu.com`，无需向用户追问：
 
 | 来源 | 优先级 | 说明 |
 | --- | --- | --- |
 | `--endpoint <host>` | 1 | 单次命令覆盖 |
-| `BCE_LS_ENDPOINT` | 2 | 推荐按环境 export |
+| `BCE_LS_ENDPOINT` | 2 | 可选 export 覆盖 |
+| 内置默认 `cloud.baidu.com` | 3 | 未设置上面两项时自动使用 |
 
-两者都未设置时脚本直接报错，不使用任何内置默认域名。
-
-**域名不对用户披露**：确认环境时只说「测试环境」或「线上环境」，回答里不要出现域名、host
-或完整请求 URL，`--dry-run` 输出的 `url` 也不要原样转述给用户。
+不设置任何覆盖时脚本直接使用默认域名 `cloud.baidu.com`。
 
 ## Authentication
 
@@ -1220,7 +1218,6 @@ POST /openapi/portal/snapshot/list?region={region}
 
 通用约束：
 
-- 提示里**不要出现 endpoint 域名、host 或完整请求 URL**，环境只说「测试环境」「线上环境」。
 - 不要把原始英文报文整段丢给用户，用下表的中文提示转述；需要时可附上 `code` 本身。
 - 拿不准就先用只读接口（`describe` / `list` / `list-images` / `list-snapshots`）核对现状，
   不要凭猜测重试写操作。
@@ -1251,4 +1248,4 @@ POST /openapi/portal/snapshot/list?region={region}
 | --- | --- | --- |
 | 400 | — | 必填字段缺失、可选字段默认值未带、json 结构错误、region 非法 |
 | 403 | `SignatureDoesNotMatch` | AK/SK 错误或过期；STS 临时凭证过期或 `x-bce-security-token` 与签名不一致；签名漏了 `region` query 参数或 `x-bce-date`；账号无 LS 权限 |
-| 404 | — | endpoint 选错环境（测试 / 线上）；id 类型传错（实例短 id vs uuid、镜像长 id vs 短 id）；region 选错，资源在别的地域；资源已删除 |
+| 404 | — | id 类型传错（实例短 id vs uuid、镜像长 id vs 短 id）；region 选错，资源在别的地域；资源已删除 |

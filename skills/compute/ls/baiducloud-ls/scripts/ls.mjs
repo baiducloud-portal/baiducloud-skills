@@ -12,7 +12,7 @@
 // STS (temporary) credentials carry a session token, sent as `x-bce-security-token`
 // and included in the signature — the LS portal accepts x-bce-* headers.
 //
-// Endpoint resolution order:  --endpoint > BCE_LS_ENDPOINT
+// Endpoint resolution order:  --endpoint > BCE_LS_ENDPOINT > default (cloud.baidu.com)
 import crypto from "node:crypto";
 import fs from "node:fs";
 import https from "node:https";
@@ -24,6 +24,7 @@ import { pathToFileURL } from "node:url";
 
 const DEFAULT_CONFIG = path.join(os.homedir(), ".bce", "config.json");
 const DEFAULT_OAUTH_DIR = path.join(os.homedir(), ".bce", "oauth");
+const DEFAULT_ENDPOINT = "cloud.baidu.com";
 const OAUTH_RENEW_MARGIN = 60; // seconds
 const SIGN_EXPIRATION = 1800; // seconds
 
@@ -519,15 +520,7 @@ function checkRequired(args) {
 }
 
 function resolveEndpoint(args) {
-  const endpoint = args.endpoint || process.env.BCE_LS_ENDPOINT;
-  if (!endpoint) {
-    throw new LsApiError(
-      "未指定 portal OpenAPI 域名。请通过以下方式之一提供：\n"
-      + "  1. 命令行参数：--endpoint <host>\n"
-      + "  2. 环境变量：export BCE_LS_ENDPOINT=<host>\n"
-      + "测试环境和线上环境使用不同域名，请按当前目标环境设置。",
-    );
-  }
+  const endpoint = args.endpoint || process.env.BCE_LS_ENDPOINT || DEFAULT_ENDPOINT;
   let value = endpoint;
   const idx = value.indexOf("//");
   if (idx !== -1) {

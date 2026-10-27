@@ -55,16 +55,13 @@ starting, determine which type of server the user means:
 
 | Item | Resolution order | Behavior when missing |
 | --- | --- | --- |
-| Domain | `--endpoint` > `BCE_LS_ENDPOINT` | Error out directly, **never use any built-in default domain** |
+| Domain | `--endpoint` > `BCE_LS_ENDPOINT` > built-in default `cloud.baidu.com` | Falls back to the default domain; never ask the user for an endpoint |
 | Credentials | `BCE_ACCESS_KEY_ID`+`BCE_SECRET_ACCESS_KEY` (+ optional `BCE_SECURITY_TOKEN`) > the profile named by `--profile` or the current profile in `~/.bce/config.json` (AK mode takes ak/sk; OAuth mode uses STS temporary credentials from `bce auth login`, including sessionToken) | Error out and explain how to configure |
 | region | `--region` > `BCE_REGION` > `bj` | Script falls back to `bj`, but **you must ask the user before any call**, see the region rules below |
 
-- **The test and production environments use different domains.** When the user has not stated
-  the target environment, ask proactively; do not assume on their behalf.
-- **Never disclose the endpoint domain to the user.** When asking about or restating the
-  environment, say only "test environment" or "production environment"; do not write out the
-  domain, host, or a full URL, and do not paste the `url` from `--dry-run` verbatim to the user.
-  When you need to show request content, list only the region and business parameters.
+- The endpoint resolves to the built-in default `cloud.baidu.com` automatically;
+  `--endpoint` / `BCE_LS_ENDPOINT` only override it when explicitly set. Do not ask the
+  user which environment to use.
 - region supports only `bj` `gz` `su` `hkg` `bd`; other regions are returned as unsupported.
 - **Passing AK/SK on the command line is not supported.** When credentials are incomplete, use
   `baiducloud-auth` to diagnose; do not rewrite the user's credential file.
@@ -191,8 +188,8 @@ within range; do not silently truncate to 120 and place the order.
 **Execution order (dangerous and billing operations)**:
 
 1. Generate a preview with `--dry-run`;
-2. Show the user: environment (say only test/production, **no domain**), region, instance id and
-   name, and the key parameters (target image / snapshot / spec / duration);
+2. Show the user: region, instance id and name, and the key parameters (target image /
+   snapshot / spec / duration);
 3. After explicit consent, drop `--dry-run`, keep `--confirm`, and execute;
 4. A write operation only returns `success` / `status`, which **does not mean the resource is
    ready**; poll with `describe` or `list-*` to confirm.
@@ -287,8 +284,7 @@ with `snapshotId` (short id) + the instance short id; delete with `instanceUuid`
 ## Common commands
 
 ```bash
-# Environment setup (swap the domain for test/production; the domain is configured locally only, not shown to the user)
-export BCE_LS_ENDPOINT="<portal-openapi-host>"
+# Environment setup (the endpoint defaults to cloud.baidu.com; override only if you must)
 export BCE_ACCESS_KEY_ID="<ak>" BCE_SECRET_ACCESS_KEY="<sk>"
 
 # Queries (confirm the region with the user first; for multiple regions run once per region)
@@ -315,9 +311,7 @@ first, or run `node scripts/ls.mjs <subcommand> --help`.
 
 ## Result presentation
 
-- **No answer should contain the endpoint domain, host, or a full request URL**; refer to the
-  environment only as "test environment" / "production environment"; for multi-region queries, group
-  by region and label which region each group belongs to.
+- For multi-region queries, group by region and label which region each group belongs to.
 - Take list results from `page.result` and show `id` (short id), `name`, `status`, `spec`, `eip`,
   and `expireTime`; for renew/resize, additionally retain `instanceId` (uuid).
 - Show image results with the id matching the target operation: `create` uses the long id (`id`),
@@ -346,13 +340,11 @@ the `code` is not listed, fall back to the HTTP status codes in the table below.
 | Script reports "missing required parameter" | Query the source interface named by the prompt first and present the candidates for the user to choose; do not fabricate |
 | Script reports a parameter out of range (such as renewal duration or purchase count) | Tell the user the allowed range (`--duration` 1-120 months, `--purchase-count` 1-50 units) and let them change it; do not truncate yourself |
 | HTTP 403 `SignatureDoesNotMatch` | 1) Are the AK/SK correct and not expired; 2) Does the region participate in the signature and is its value valid; 3) Does the account have LS permission. Check with `baiducloud-auth` |
-| HTTP 404 | 1) Is the endpoint the wrong environment (test vs production); 2) Is the id type wrong (short id vs uuid); 3) Is the region wrong; 4) Has the resource been deleted |
+| HTTP 404 | 1) Is the id type wrong (short id vs uuid); 2) Is the region wrong; 3) Has the resource been deleted |
 | HTTP 400 | Check the required fields and optional-field defaults; note that `vmSnapsots` keeps the backend spelling, **do not correct it** |
-| Network error | Confirm `BCE_LS_ENDPOINT` is reachable and the current network can access that environment |
-| Response is not valid JSON | Usually the domain points at a non-OpenAPI service (such as a console page); check the endpoint |
+| Network error | Confirm the current network can reach `cloud.baidu.com` |
+| Response is not valid JSON | Usually an `--endpoint` override points at a non-OpenAPI service (such as a console page); drop the override to use the default |
 
-Troubleshooting the endpoint is a local configuration issue: **when describing it to the user, say
-only "the current environment configuration may be wrong (test/production)"; do not paste the domain**.
 For region-related errors, confirm the user's intended region first, rather than switching to another
 region and retrying on your own.
 
