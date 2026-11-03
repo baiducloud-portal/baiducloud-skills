@@ -58,7 +58,42 @@ const HTTP_STATUS_RE = /^\d{3}$/;
 const REQUEST_ID_RE = /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/;
 
 const OAUTH_DIR = process.env.BCE_IAM_OAUTH_DIR || path.join(os.homedir(), '.bce', 'oauth');
-const OAUTH_PROFILE = 'oauth';
+const CONFIG_FILE = process.env.BCE_CONFIG_FILE || path.join(os.homedir(), '.bce', 'config.json');
+let resolvedProfile = null;
+// A profile named by BCE_PROFILE; empty or blank follows the bce current profile.
+const BCE_PROFILE = (process.env.BCE_PROFILE || '').trim() || null;
+
+// The bce profile to read: BCE_PROFILE when set, else the profile that
+// `bce auth status` reports (the current one), else `current` in config.json.
+function oauthProfile() {
+  if (resolvedProfile) {
+    return resolvedProfile;
+  }
+  if (BCE_PROFILE) {
+    resolvedProfile = BCE_PROFILE;
+    return resolvedProfile;
+  }
+  const proc = spawnSync(process.env.BCE_CLI_BIN || 'bce', ['auth', 'status', '--format', 'json'],
+    { encoding: 'utf-8', timeout: 10000 });
+  let fromStatus = null;
+  try {
+    fromStatus = proc.error ? null : JSON.parse(proc.stdout || '').profile;
+  } catch {
+    // unparseable status output; fall back to the config file
+  }
+  if (typeof fromStatus === 'string' && fromStatus) {
+    resolvedProfile = fromStatus;
+  } else {
+    let current = null;
+    try {
+      current = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'))?.current;
+    } catch {
+      // no readable config; fall through to the default name
+    }
+    resolvedProfile = typeof current === 'string' && current ? current : 'oauth';
+  }
+  return resolvedProfile;
+}
 const OAUTH_RENEW_MARGIN = 60; // seconds
 
 const UNRESERVED = /[A-Za-z0-9\-_.~]/;
@@ -269,7 +304,7 @@ function parseIso8601(value) {
 }
 
 function readStsState() {
-  const statePath = path.join(OAUTH_DIR, `${OAUTH_PROFILE}.json`);
+  const statePath = path.join(OAUTH_DIR, `${oauthProfile()}.json`);
   try {
     const data = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
     return data && typeof data === 'object' ? data.sts : null;
@@ -302,7 +337,12 @@ function stsUsable(sts, now) {
 // if bce's refresh contract changes.
 function refreshOauth() {
   const binary = process.env.BCE_CLI_BIN || 'bce';
-  const result = spawnSync(binary, ['auth', 'refresh'], { timeout: 15000, stdio: 'ignore' });
+  // Without --profile bce renews its current profile; name ours when BCE_PROFILE overrides it.
+  const args = ['auth', 'refresh'];
+  if (BCE_PROFILE) {
+    args.push('--profile', BCE_PROFILE);
+  }
+  const result = spawnSync(binary, args, { timeout: 15000, stdio: 'ignore' });
   return !result.error && result.status === 0;
 }
 

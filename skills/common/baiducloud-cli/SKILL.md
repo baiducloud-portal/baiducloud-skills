@@ -67,23 +67,28 @@ the user and let them rerun with the required permission.
 
 ## Authentication
 
-This Skill uses the fixed `oauth` profile (IAM OAuth). Before running any
-service operation, ensure both preconditions hold:
+This Skill uses the OAuth profile (IAM OAuth) that `bce` has selected: the
+current profile, or the one named with `--profile`. Profile names are not fixed;
+`bce auth login --profile <name>` creates or updates a named profile. Before
+running any service operation, ensure both preconditions hold:
 
 - `bce` is installed. If not, ask the user to install `bce-cli` first.
-- The `oauth` OAuth profile exists. If not, ask the user to run
-  `bce auth login`.
+- The selected profile is an OAuth profile and is logged in. If not, ask the
+  user to run `bce auth login` (add `--profile <name>` for a named profile).
 
 `baiducloud-auth` owns this readiness check (`node scripts/check_auth.mjs`
-reports whether `bce` is installed, whether the `oauth` profile exists, and
-whether its credentials expired). Route sign-in and credential-status
-questions there.
+reports whether `bce` is installed, which profile is selected, whether that
+profile exists, and whether its credentials expired). Route sign-in and
+credential-status questions there.
 
 Sign in with the official CLI IAM OAuth browser login:
 
 ```bash
 # Open the system browser for IAM OAuth login.
 bce auth login
+
+# Login to a named profile.
+bce auth login --profile dev
 
 # Login and set the default region.
 bce auth login --region bj
@@ -96,16 +101,16 @@ bce auth status
 bce auth logout
 ```
 
-Credentials are written to the `oauth` profile. An existing AK/SK profile is
+Credentials are written to the selected profile. An existing AK/SK profile is
 not overwritten. A successful login switches the current profile to the OAuth
 profile. `--callback-timeout` controls how long the CLI waits for the browser
 callback and defaults to 300 seconds.
 
-OAuth credentials are managed by `bce-cli` and stored separately from
-`oauth.json` under `~/.bce/oauth/`. Never read, copy, or print that file.
-Before temporary credentials expire, the CLI renews them automatically. If
-renewal fails, run `bce auth login` again. The OAuth access token is not a
-BCE API credential.
+OAuth credentials are managed by `bce-cli` and stored separately, one
+`<profile>.json` per profile under `~/.bce/oauth/`. Never read, copy, or print
+those files. Before temporary credentials expire, the CLI renews them
+automatically. If renewal fails, run `bce auth login` again. The OAuth access
+token is not a BCE API credential.
 
 ## Discover services and operations
 
@@ -120,11 +125,11 @@ bce bls --help
 bce <service> <operation> --help
 ```
 
-Invoke operations with the fixed `oauth` profile and prefer structured output
-for Agent processing:
+Invoke operations with the selected OAuth profile (omit `--profile` to use the
+current one) and prefer structured output for Agent processing:
 
 ```bash
-bce bcc ListInstances --profile oauth --region bj --output json
+bce bcc ListInstances --region bj --output json
 ```
 
 Use `--query` to reduce output and use `--pager` only when operation help
@@ -132,17 +137,18 @@ confirms pagination support.
 
 ## Profile and region
 
-Always target the fixed `oauth` profile. Pass the region explicitly when it
-matters:
+Target the current profile, or the profile the user names with `--profile`. Pass
+the region explicitly when it matters:
 
 ```bash
 bce configure list
-bce bcc ListInstances --profile oauth --region bj --output json
+bce bcc ListInstances --profile dev --region bj --output json
 ```
 
-`--profile oauth` selects the OAuth profile for one command. If the `oauth`
-profile is missing, run `bce auth login`. Do not infer an account, region, or
-payment type from a resource name.
+`--profile <name>` selects a profile for one command. Never switch the current
+profile or guess a profile name for the user; if the intended profile is
+missing, run `bce auth login --profile <name>`. Do not infer an account, region,
+or payment type from a resource name.
 
 ## Write-operation safety
 
@@ -181,7 +187,7 @@ Separate local errors from service errors:
   command fails because the CLI is outdated, run `bce upgrade --dry-run` to
   check and upgrade per "Keep the CLI up to date";
 - missing or expired credentials: `baiducloud-auth` owns this; run
-  `bce auth status` and, if the `oauth` profile is missing or expired, follow
+  `bce auth status` and, if the selected profile is missing or expired, follow
   its troubleshooting (`bce auth login`);
 - invalid region or parameter: confirm operation help and service
   documentation, retrieved through `baiducloud-docs` rather than from memory;

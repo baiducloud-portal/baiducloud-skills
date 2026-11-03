@@ -6,7 +6,10 @@
 // Credentials never appear in argv, environment variables, files, or output.
 //
 // Usage: node sync_qianfan.mjs <sync|check|logout> [--dry-run] [--format json|text] [--debug]
-//        [--no-auto-sync] [--no-auto-refresh]
+//        [--no-auto-sync] [--no-auto-refresh] [--profile <name>]
+//
+// The bce profile is --profile or BCE_PROFILE when given, otherwise the current
+// profile reported by `bce auth status`.
 //
 // When the bce STS credentials are expired or within 2 minutes of expiry,
 // `sync` first renews them with `bce auth refresh` (disable: --no-auto-refresh).
@@ -21,7 +24,10 @@ import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 
 const OAUTH_DIR = process.env.BCE_IAM_OAUTH_DIR || path.join(os.homedir(), '.bce', 'oauth');
-const OAUTH_PROFILE = 'oauth';
+const CONFIG_FILE = process.env.BCE_CONFIG_FILE || path.join(os.homedir(), '.bce', 'config.json');
+// A profile named by --profile or BCE_PROFILE; null follows the bce current profile.
+let explicitProfile = (process.env.BCE_PROFILE || '').trim() || null;
+let resolvedProfile = null;
 // qianfan treats credentials as expired 2 minutes before `expiration`.
 const SAFETY_MARGIN_MS = 2 * 60 * 1000;
 
@@ -43,6 +49,34 @@ const HINTS = {
   CREDENTIAL_NOT_FOUND: "qianfan is not logged in or its login expired; run 'sync' again",
 };
 
+// The bce profile to read: --profile / BCE_PROFILE, else the profile that
+// `bce auth status` reports (the current one), else `current` in config.json.
+function oauthProfile() {
+  if (resolvedProfile) {
+    return resolvedProfile;
+  }
+  if (explicitProfile) {
+    resolvedProfile = explicitProfile;
+    return resolvedProfile;
+  }
+  const proc = spawnSync(process.env.BCE_CLI_BIN || 'bce', ['auth', 'status', '--format', 'json'],
+    { encoding: 'utf-8', timeout: 10000 });
+  const fromStatus = proc.error ? null : parseJson(proc.stdout || '')?.profile;
+  if (typeof fromStatus === 'string' && fromStatus) {
+    resolvedProfile = fromStatus;
+  } else {
+    let current = null;
+    try {
+      current = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf-8'))?.current;
+    } catch {
+      // no readable config; fall through to the default name
+    }
+    resolvedProfile = typeof current === 'string' && current ? current : 'oauth';
+  }
+  debug(`resolved bce profile: ${resolvedProfile}`);
+  return resolvedProfile;
+}
+
 function parseArgs(argv) {
   const opts = { command: null, dryRun: false, format: 'json', autoSync: true, autoRefresh: true };
   for (let i = 0; i < argv.length; i += 1) {
@@ -55,6 +89,12 @@ function parseArgs(argv) {
       opts.autoRefresh = false;
     } else if (arg === '--debug') {
       debugEnabled = true;
+    } else if (arg === '--profile') {
+      if (!argv[i + 1] || argv[i + 1].startsWith('-')) {
+        return { error: '--profile requires a profile name' };
+      }
+      explicitProfile = argv[i + 1];
+      i += 1;
     } else if (arg === '--format') {
       opts.format = argv[i + 1];
       i += 1;
@@ -92,7 +132,7 @@ function parseExpiration(value, { requireTimezone = false } = {}) {
 // Returns { payload } on success or { error, hint } when the bce login state
 // is missing or unusable. Only presence is reported, never a value.
 function loadBceCredentials() {
-  const statePath = path.join(OAUTH_DIR, `${OAUTH_PROFILE}.json`);
+  const statePath = path.join(OAUTH_DIR, `${oauthProfile()}.json`);
   debug(`reading bce oauth state: ${statePath}`);
   let data;
   try {
@@ -150,6 +190,10 @@ function qianfanBinary() {
 function runBceRefresh() {
   const bin = process.env.BCE_CLI_BIN || 'bce';
   const args = ['auth', 'refresh', '--format', 'json'];
+  // Without --profile bce renews its current profile; name ours when it was overridden.
+  if (explicitProfile) {
+    args.push('--profile', explicitProfile);
+  }
   debug(`exec: ${bin} ${args.join(' ')}`);
   const proc = spawnSync(bin, args, { encoding: 'utf-8', timeout: 60000 });
   if (proc.error) {
@@ -321,7 +365,7 @@ function accountMismatch(idToken, qianfanAccount) {
 // login state and, via doSync, may run `bce auth refresh`; it needs usable bce
 // credentials and fails with a `bce auth login` hint otherwise.
 function doCheck(opts) {
-  const statePath = path.join(OAUTH_DIR, `${OAUTH_PROFILE}.json`);
+  const statePath = path.join(OAUTH_DIR, `${oauthProfile()}.json`);
   let idToken = null;
   try {
     const data = JSON.parse(fs.readFileSync(statePath, 'utf-8'));

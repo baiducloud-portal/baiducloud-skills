@@ -28,8 +28,8 @@ Before executing a request:
 3. Use a Baidu Cloud endpoint over HTTPS. The runtime rejects non-Baidu hosts,
    URL user information, non-standard ports, redirects, and private/reserved
    addresses.
-4. Sign in with `bce auth login` first. The runtime uses the fixed `oauth`
-   profile's temporary credentials; never place credentials in URLs, request
+4. Sign in with `bce auth login` first. The runtime uses the selected OAuth
+   profile's temporary credentials (`--profile`, else the current profile); never place credentials in URLs, request
    bodies, command arguments, logs, or chat messages.
 
 ## Product references (resolved from BOS, not hardcoded)
@@ -73,23 +73,27 @@ source of truth.
 ## Credential source
 
 The runtime authenticates only through the official `bce-cli` IAM OAuth login.
-It always uses the fixed `oauth` profile (`"mode": "OAuth"`) in
-`~/.bce/config.json`, or a test-specific path passed with `--config-file`.
+It uses the OAuth profile (`"mode": "OAuth"`) named by `--profile` or
+`BCE_PROFILE`, otherwise the current profile in `~/.bce/config.json` (or a
+test-specific path passed with `--config-file`). Profile names are not fixed. If
+the selected profile is not an OAuth profile, the runtime stops instead of
+falling back to another one.
 
 - If `bce` is not installed, the runtime stops and asks the user to install
   `bce-cli` first.
-- If the `oauth` profile does not exist, the runtime stops and asks the user to
-  run `bce auth login`.
+- If the selected OAuth profile does not exist, the runtime stops and asks the
+  user to run `bce auth login` (with `--profile <name>` for a named profile).
 
-Authentication readiness (bce installed, `oauth` profile present, credentials
+Authentication readiness (bce installed, OAuth profile present, credentials
 not expired) is owned by `baiducloud-auth`. Route login and authentication
 troubleshooting there; this runtime only enforces the same preconditions at
 execution time so it stays self-contained when installed on its own.
 
-For the `oauth` profile the runtime reads the temporary STS credentials that
-`bce-cli` stored in `~/.bce/oauth/oauth.json` and signs the request with them.
+For the selected profile the runtime reads the temporary STS credentials that
+`bce-cli` stored in `~/.bce/oauth/<profile>.json` and signs the request with them.
 If those temporary credentials are expired, the runtime asks `bce-cli` to renew
-them (`bce auth refresh`) and re-reads the state; if renewal does not produce
+them (`bce auth refresh`, with `--profile` when the profile was named explicitly)
+and re-reads the state; if renewal does not produce
 valid credentials, it reports that the user must run `bce auth login` again.
 The runtime never reads or writes OAuth tokens itself and does not perform the
 OAuth flow.

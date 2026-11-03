@@ -428,9 +428,12 @@ function readOauthSts(statePath) {
   return data.sts;
 }
 
-function defaultOauthRenew(name, environ = process.env) {
+// Without --profile bce renews its current profile; `explicit` names ours when
+// the profile came from --profile and may differ from current.
+function defaultOauthRenew(name, environ = process.env, explicit = false) {
   const binary = environ.BCE_CLI_BIN || "bce";
-  const result = spawnSync(binary, ["auth", "refresh"], { timeout: 30000 });
+  const args = explicit ? ["auth", "refresh", "--profile", name] : ["auth", "refresh"];
+  const result = spawnSync(binary, args, { timeout: 30000 });
   if (result.error) {
     throw new LsApiError("无法运行 bce 续期 OAuth 凭证；请运行 'bce auth login'");
   }
@@ -482,7 +485,10 @@ function loadCredentials({ profile = null, configFile = null, environ = process.
   const configPath = configFile ? expandUser(String(configFile)) : DEFAULT_CONFIG;
   if (profile) {
     const [profileData, selected] = profileFromConfig(configPath, profile);
-    return credentialsFromProfile(profileData, selected, opts);
+    const explicitOpts = oauthRenew === undefined
+      ? { ...opts, oauthRenew: (name) => defaultOauthRenew(name, environ, true) }
+      : opts;
+    return credentialsFromProfile(profileData, selected, explicitOpts);
   }
   const env = {
     access_key_id: nonempty(environ.BCE_ACCESS_KEY_ID),

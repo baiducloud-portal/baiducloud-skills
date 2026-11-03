@@ -10,6 +10,7 @@ Use the official `bce` CLI for IAM OAuth. The core subcommands are:
 ```bash
 # Sign in via the system browser (open the printed URL manually if needed).
 bce auth login
+bce auth login --profile dev        # sign in to a named profile
 bce auth login --region bj          # sign in and set the default region
 bce auth login --no-browser         # SSH, container, or other headless env
 bce auth login --callback-timeout 600  # browser callback timeout, seconds
@@ -22,7 +23,8 @@ bce auth refresh                    # renew temporary credentials
 For the exact flag set of any subcommand, consult `bce auth <subcommand>
 --help` rather than assuming it here.
 
-Credentials are written to the `oauth` profile. An existing AK/SK profile is
+Credentials are written to the profile selected with `--profile` (the current
+profile when omitted); profile names are not fixed. An existing AK/SK profile is
 not modified. A successful login switches the current profile to the OAuth
 profile; use `bce configure use <name>` to switch back. `--callback-timeout`
 changes the browser callback timeout; the default is 300 seconds.
@@ -36,17 +38,20 @@ For OAuth status or logout, continue using the corresponding official
 `bce auth` subcommands.
 
 This Skill is the single place to verify authentication readiness. The
-read-only checker reports whether `bce` is installed, whether the fixed `oauth`
-OAuth profile exists, and whether its temporary credentials have expired:
+read-only checker reports whether `bce` is installed, which OAuth profile is
+selected (`--profile`, `BCE_PROFILE`, else the current profile reported by
+`bce auth status`), whether that profile exists, and whether its temporary
+credentials have expired:
 
 ```bash
 node scripts/check_auth.mjs
+node scripts/check_auth.mjs --profile dev
 ```
 
 Other Skills (for example `baiducloud-cli` and `baiducloud-openapi`) route
 authentication and login troubleshooting here instead of implementing their own
 checks. See Troubleshooting below to resolve a missing CLI or a missing or
-expired `oauth` profile.
+expired OAuth profile.
 
 ## Troubleshooting authentication
 
@@ -54,7 +59,10 @@ Start by reading the current state with `node scripts/check_auth.mjs`, then act
 on what it reports:
 
 - `bce` not installed → install `bce-cli` first.
-- `oauth` profile missing or not logged in → run `bce auth login`.
+- selected profile missing or not logged in → run `bce auth login` (add
+  `--profile <name>` for a named profile). If the user is logged in but the
+  current profile was switched to another one, pass `--profile <name>` to the
+  checker and scripts instead of logging in again.
 - credentials expired → run `bce auth login` again. The CLI renews temporary
   credentials automatically (`bce auth refresh`); if renewal does not produce
   valid credentials, sign in again.
@@ -75,6 +83,7 @@ goes into argv, environment variables, or temporary files.
 ```bash
 node scripts/sync_qianfan.mjs sync --dry-run   # validate only; reads qianfan status, no login call
 node scripts/sync_qianfan.mjs sync             # login, or refresh-login if already logged in
+node scripts/sync_qianfan.mjs sync --profile dev  # sync a named bce profile instead of the current one
 node scripts/sync_qianfan.mjs check            # gate: same account in bce and qianfan? auto-syncs if qianfan is logged out
 node scripts/sync_qianfan.mjs logout           # qianfan auth internal logout
 ```
@@ -83,7 +92,10 @@ node scripts/sync_qianfan.mjs logout           # qianfan auth internal logout
 `baiducloud-qianfan` Skill). It works even when the bce STS credentials have
 expired. Results:
 
-- `match` or `skipped` (bce not logged in via oauth) exit 0.
+- `match` or `skipped` (bce not logged in via oauth) exit 0. `skipped` also
+  happens when the current bce profile is not an OAuth profile (for example an
+  AK/SK profile), because there is no `id_token` to compare; pass
+  `--profile <name>` to check a specific OAuth profile.
 - Qianfan not logged in while bce is: `check` runs `sync` (login) automatically,
   with no confirmation, and reports `auto_synced: true`. Pass `--no-auto-sync` to
   keep `check` strictly read-only. If the bce credentials are expired or within

@@ -15,8 +15,9 @@ command arguments, file paths, or PII.
 - DNS guard: before sending, the host is resolved and the request is refused if
   it maps to a private/reserved address or does not resolve (fail-closed for the
   credential-bearing request).
-- Signing: BCE auth v1, using the local `oauth` profile STS credentials from
-  `~/.bce/oauth/oauth.json`. The `x-bce-security-token` header carries the STS
+- Signing: BCE auth v1, using the STS credentials of the local OAuth profile
+  (`BCE_PROFILE`, else the current profile from `bce auth status`) stored in
+  `~/.bce/oauth/<profile>.json`. The `x-bce-security-token` header carries the STS
   session token; the backend resolves `aid` from the signature via the IAM SDK.
   If the STS token is expired or near expiry, the gateway runs `bce auth refresh`
   once and re-reads the state before signing; if it is still unusable, reporting

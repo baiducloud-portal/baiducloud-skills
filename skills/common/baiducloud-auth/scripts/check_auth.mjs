@@ -8,7 +8,39 @@ import { spawnSync } from "node:child_process";
 
 const CONFIG_FILE = process.env.BCE_CONFIG_FILE || path.join(os.homedir(), ".bce", "config.json");
 const OAUTH_DIR = process.env.BCE_IAM_OAUTH_DIR || path.join(os.homedir(), ".bce", "oauth");
-const OAUTH_PROFILE = "oauth";
+
+// The profile to check: --profile / BCE_PROFILE, else the profile that
+// `bce auth status` reports (the current one), else `current` in config.json.
+function resolveProfile(binary) {
+  const argIndex = process.argv.indexOf("--profile");
+  const explicit = argIndex >= 0 ? process.argv[argIndex + 1] : process.env.BCE_PROFILE;
+  if (argIndex >= 0 && (!explicit || explicit.startsWith("-"))) {
+    throw new Error("--profile requires a profile name");
+  }
+  if (explicit && explicit.trim()) {
+    return explicit.trim();
+  }
+  if (binary) {
+    const proc = spawnSync(binary, ["auth", "status", "--format", "json"], { encoding: "utf-8", timeout: 10000 });
+    try {
+      const fromStatus = proc.error ? null : JSON.parse(proc.stdout || "").profile;
+      if (typeof fromStatus === "string" && fromStatus) {
+        return fromStatus;
+      }
+    } catch {
+      // unparseable status output; fall back to the config file
+    }
+  }
+  try {
+    const current = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"))?.current;
+    if (typeof current === "string" && current) {
+      return current;
+    }
+  } catch {
+    // no readable config; fall through to the default name
+  }
+  return "oauth";
+}
 
 function which(bin) {
   const dirs = (process.env.PATH || "").split(path.delimiter).filter(Boolean);
@@ -26,7 +58,7 @@ function which(bin) {
   return null;
 }
 
-function oauthProfileExists() {
+function oauthProfileExists(profileName) {
   let data;
   try {
     data = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
@@ -40,7 +72,7 @@ function oauthProfileExists() {
   for (const profile of profiles) {
     if (
       profile && typeof profile === "object"
-      && profile.name === OAUTH_PROFILE
+      && profile.name === profileName
       && String(profile.mode ?? "").trim().toLowerCase() === "oauth"
     ) {
       return true;
@@ -61,9 +93,9 @@ function parseExpiration(value) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function oauthLoginState() {
+function oauthLoginState(profileName) {
   const state = { logged_in: false, credentials_expired: null, state_readable: true };
-  const statePath = path.join(OAUTH_DIR, `${OAUTH_PROFILE}.json`);
+  const statePath = path.join(OAUTH_DIR, `${profileName}.json`);
   if (!fs.existsSync(statePath) || !fs.statSync(statePath).isFile()) {
     return state;
   }
@@ -88,10 +120,17 @@ function main() {
   const binary = process.env.BCE_CLI_BIN || "bce";
   const resolved = path.basename(binary) === binary ? which(binary) : binary;
   const available = Boolean(resolved) && fs.existsSync(resolved);
+  let profileName;
+  try {
+    profileName = resolveProfile(available ? resolved : null);
+  } catch (err) {
+    process.stderr.write(`${err.message}\n`);
+    return 2;
+  }
   const cli = { binary, available };
   const result = {
     cli,
-    oauth: { profile: OAUTH_PROFILE, profile_exists: false },
+    oauth: { profile: profileName, profile_exists: false },
   };
   if (available) {
     const proc = spawnSync(resolved, ["version"], { encoding: "utf-8", timeout: 10000 });
@@ -103,8 +142,8 @@ function main() {
     }
   }
   const oauth = result.oauth;
-  oauth.profile_exists = oauthProfileExists();
-  Object.assign(oauth, oauthLoginState());
+  oauth.profile_exists = oauthProfileExists(profileName);
+  Object.assign(oauth, oauthLoginState(profileName));
   if (!available) {
     result.hint = "install bce-cli from https://github.com/baidubce/bce-cli";
   } else if (
@@ -112,7 +151,7 @@ function main() {
     || !oauth.logged_in
     || oauth.credentials_expired === true
   ) {
-    result.hint = "run 'bce auth login' to sign in";
+    result.hint = `run 'bce auth login --profile ${profileName}' to sign in`;
   }
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   return available ? 0 : 1;

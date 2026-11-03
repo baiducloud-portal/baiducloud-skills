@@ -15,7 +15,7 @@ import { pathToFileURL } from "node:url";
 const DEFAULT_CONFIG = path.join(os.homedir(), ".bce", "config.json");
 const DEFAULT_OAUTH_DIR = path.join(os.homedir(), ".bce", "oauth");
 const OAUTH_RENEW_MARGIN = 60; // seconds
-const FIXED_OAUTH_PROFILE = "oauth";
+const DEFAULT_OAUTH_PROFILE = "oauth";
 const DEFAULT_MAX_RESPONSE = 10 * 1024 * 1024;
 const DEFAULT_MAX_REQUEST = 70 * 1024 * 1024;
 const BODY_SUMMARY_THRESHOLD = 1024 * 1024;
@@ -511,9 +511,12 @@ function readOauthSts(statePath) {
   return data.sts;
 }
 
-function defaultOauthRenew(name, environ = process.env) {
+// Without --profile bce renews its current profile; `explicit` names ours when
+// the profile came from --profile / BCE_PROFILE and may differ from current.
+function defaultOauthRenew(name, environ = process.env, explicit = false) {
   const binary = environ.BCE_CLI_BIN || "bce";
-  const result = spawnSync(binary, ["auth", "refresh"], { timeout: 30000 });
+  const args = explicit ? ["auth", "refresh", "--profile", name] : ["auth", "refresh"];
+  const result = spawnSync(binary, args, { timeout: 30000 });
   if (result.error) {
     throw new CredentialError(
       "could not run bce to renew OAuth credentials; run 'bce auth login'",
@@ -576,7 +579,11 @@ function loadCredentials({ profile = null, configFile = null, environ = process.
   const configPath = configFile ? expandUser(String(configFile)) : DEFAULT_CONFIG;
   if (profile) {
     const [profileData, selected] = profileFromConfig(configPath, profile);
-    return credentialsFromProfile(profileData, selected, opts);
+    // The profile was named explicitly, so renewal must name it too.
+    const explicitOpts = oauthRenew === undefined
+      ? { ...opts, oauthRenew: (name) => defaultOauthRenew(name, environ, true) }
+      : opts;
+    return credentialsFromProfile(profileData, selected, explicitOpts);
   }
   const envValues = {
     access_key_id: nonempty(environ.BCE_ACCESS_KEY_ID),
@@ -653,17 +660,30 @@ function findNamedProfile(configPath, name) {
   return null;
 }
 
-function loadOauthCredentials({ configFile = null, oauthDir = null, now = null,
+function loadOauthCredentials({ profile = null, configFile = null, oauthDir = null, now = null,
   oauthRenew = undefined, environ = process.env } = {}) {
   requireBceCli(environ);
   const configPath = configFile ? expandUser(String(configFile)) : DEFAULT_CONFIG;
-  const profileData = findNamedProfile(configPath, FIXED_OAUTH_PROFILE);
+  // --profile / BCE_PROFILE, else the bce current profile from config.json.
+  const explicit = profile || nonempty(environ.BCE_PROFILE);
+  let name = explicit;
+  if (!name) {
+    try {
+      name = nonempty(readJsonFile(configPath)?.current) || DEFAULT_OAUTH_PROFILE;
+    } catch {
+      name = DEFAULT_OAUTH_PROFILE;
+    }
+  }
+  const profileData = findNamedProfile(configPath, name);
   if (profileData === null || String(profileData.mode ?? "").trim().toLowerCase() !== "oauth") {
     throw new CredentialError(
-      `no '${FIXED_OAUTH_PROFILE}' OAuth profile found; run 'bce auth login' to sign in`,
+      `no '${name}' OAuth profile found; run 'bce auth login --profile ${name}' to sign in`,
     );
   }
-  return oauthCredentials(FIXED_OAUTH_PROFILE, nonempty(profileData.region), { oauthDir, now, oauthRenew });
+  const renew = oauthRenew === undefined && explicit
+    ? (renewName) => defaultOauthRenew(renewName, environ, true)
+    : oauthRenew;
+  return oauthCredentials(name, nonempty(profileData.region), { oauthDir, now, oauthRenew: renew });
 }
 
 function hmacHex(key, message) {
@@ -913,7 +933,7 @@ const CLI_METHODS = ["DELETE", "GET", "HEAD", "PATCH", "POST", "PUT"];
 
 function parseCliArgs(argv) {
   const opts = {
-    method: null, url: null, configFile: null, body: null, bodyFile: null,
+    method: null, url: null, configFile: null, profile: null, body: null, bodyFile: null,
     header: [], confirm: false, dryRun: false,
     timeout: DEFAULT_TIMEOUT, maxResponse: DEFAULT_MAX_RESPONSE, maxRequest: DEFAULT_MAX_REQUEST,
   };
@@ -934,6 +954,7 @@ function parseCliArgs(argv) {
       return argv[i];
     };
     if (token === "--config-file") opts.configFile = takeValue(token);
+    else if (token === "--profile") opts.profile = takeValue(token);
     else if (token === "--body") opts.body = takeValue(token);
     else if (token === "--body-file") opts.bodyFile = takeValue(token);
     else if (token === "--header") opts.header.push(takeValue(token));
@@ -970,7 +991,7 @@ async function main(argv) {
     if (args.timeout <= 0 || args.maxResponse <= 0 || args.maxRequest <= 0) {
       throw new RequestPolicyError("--timeout, --max-response, and --max-request must be positive");
     }
-    const credentials = await internals.loadOauthCredentials({ configFile: args.configFile });
+    const credentials = await internals.loadOauthCredentials({ configFile: args.configFile, profile: args.profile });
     const headers = {};
     for (const item of args.header) {
       if (!item.includes(":")) {
