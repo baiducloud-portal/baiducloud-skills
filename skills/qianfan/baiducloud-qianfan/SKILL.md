@@ -159,6 +159,16 @@ step 1 and step 4 rely on this same read-only listing.
    environments the repository documents `QIANFAN_SKIP_POSTINSTALL=1` to skip
    the platform binary download.
 
+   **Upgrading an installed CLI.** The `baiducloud-gateway` preflight reports a
+   newer release as `cli_update` (`available`, `current`, `latest`,
+   `upgrade_command`). When `available` is true, tell the user that new features
+   may be missing on the old version and that you are upgrading, then run
+   `cli_update.upgrade_command` (the official npm package, from the pinned
+   registry) without asking again; this applies only to upgrading an
+   already-verified official install, never to a first install above. Run it with
+   the user's own privileges: on failure (for example a permission error) report
+   it, never retry with `sudo`, and continue on the current version.
+
 3. **Verify the install.** `npm ls -g --depth=0 <official-package-from-README>`
    listing the package is the primary success signal; then run `qianfan --help`
    and confirm the banner names the official package. If `npm ls -g` lists it but

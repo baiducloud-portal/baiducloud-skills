@@ -2,7 +2,8 @@
 // baiducloud-gateway: pre-invocation version check + attribution reporting.
 //
 // This runtime runs before any baiducloud-* Skill is invoked. It (1) checks
-// whether the target Skill has an update available via the generic Skills CLI
+// whether the target Skill has an update available via the generic Skills CLI,
+// and whether the local bce / qianfan CLI binary has a newer release,
 // and (2) reports a desensitized attribution event to an independent remote
 // endpoint. The report request is signed with the local OAuth/STS credentials
 // so the backend resolves the account id (aid) from the signature via IAM; the
@@ -698,6 +699,161 @@ function checkUpdate(skill) {
   return { available: Boolean(outdated), experimental: true, raw: out.trim().slice(0, 400) };
 }
 
+// CLI binary update detection (read-only; the gateway never upgrades anything).
+// bce-cli: `bce version` vs `bce upgrade --dry-run`. qianfan: `qianfan --version`
+// vs the latest npm release. Results are cached for CLI_CACHE_TTL_MS so a busy
+// session does not hit the network on every preflight. Fail-open: any missing
+// binary, timeout, or unparsable output yields {available:null}.
+const CLI_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const CLI_INCONCLUSIVE_TTL_MS = 10 * 60 * 1000;
+const QIANFAN_NPM_PACKAGE = '@baiducloud/qianfan-cli';
+// The same registry is used to look up the latest version and in the suggested
+// upgrade command, so the check and the advice cannot disagree.
+const QIANFAN_NPM_REGISTRY = 'https://registry.npmjs.org/';
+// Each probe is bounded tightly: a slow or hung CLI must not delay the real task.
+const CLI_PROBE_TIMEOUT_MS = 5000;
+const SEMVER_RE = /\d+\.\d+\.\d+/g;
+const CLI_TOOLS = {
+  'bce-cli': {
+    tool: 'bce',
+    upgrade_command: 'bce upgrade --yes',
+  },
+  'qianfan-cli': {
+    tool: 'qianfan',
+    upgrade_command: `npm i ${QIANFAN_NPM_PACKAGE}@latest -g --registry ${QIANFAN_NPM_REGISTRY}`,
+  },
+};
+
+function semverParts(text) {
+  return text.split('.').map(Number);
+}
+
+function compareSemver(a, b) {
+  const pa = semverParts(a);
+  const pb = semverParts(b);
+  for (let i = 0; i < 3; i += 1) {
+    if (pa[i] !== pb[i]) {
+      return pa[i] > pb[i] ? 1 : -1;
+    }
+  }
+  return 0;
+}
+
+function firstSemver(text) {
+  const found = (text || '').match(SEMVER_RE);
+  return found ? found[0] : null;
+}
+
+// The version a message names as the newest release, e.g. "发现新版本 0.1.138"
+// or "已是最新版本 0.1.138". Unlabeled numbers (build dates, the current
+// version) are ignored so they cannot pass for a newer release.
+const LATEST_LABEL_RE = /(?:新版本|最新版本|new version|newer version|latest version)\D{0,20}(\d+\.\d+\.\d+)/i;
+
+function labeledLatest(text) {
+  const match = (text || '').match(LATEST_LABEL_RE);
+  return match ? match[1] : null;
+}
+
+// One cache file per CLI, so concurrent bce / qianfan preflights never
+// overwrite each other's entry. GATEWAY_CLI_CACHE_DIR overrides the directory.
+function cliCacheFile(tool) {
+  const dir = process.env.GATEWAY_CLI_CACHE_DIR || os.tmpdir();
+  return path.join(dir, `baiducloud-skills-cli-update-${tool}.json`);
+}
+
+function readCliCache(tool, current, now) {
+  try {
+    const entry = JSON.parse(fs.readFileSync(cliCacheFile(tool), 'utf-8'));
+    // An inconclusive verdict is remembered only briefly, so a dead registry
+    // does not cost a full probe timeout on every preflight.
+    const ttl = entry && entry.available === null ? CLI_INCONCLUSIVE_TTL_MS : CLI_CACHE_TTL_MS;
+    if (entry && entry.current === current && now - entry.checked_at < ttl) {
+      return entry;
+    }
+  } catch {
+    // no cache yet, or unreadable; treat as a miss
+  }
+  return null;
+}
+
+// Best-effort: write a temp file then rename, so a concurrent reader of the
+// same CLI's cache sees either the old or the new content, never a partial one.
+function writeCliCache(tool, entry) {
+  const file = cliCacheFile(tool);
+  const tmp = `${file}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(entry), 'utf-8');
+    fs.renameSync(tmp, file);
+  } catch {
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {
+      // nothing more to clean up
+    }
+  }
+}
+
+function runProbe(bin, args, input) {
+  const proc = spawnSync(bin, args, { encoding: 'utf-8', timeout: CLI_PROBE_TIMEOUT_MS, input });
+  if (proc.error || typeof proc.status !== 'number') {
+    return null;
+  }
+  return `${proc.stdout || ''}${proc.stderr || ''}`;
+}
+
+function checkCliUpdate(sourceLayer, now = Date.now()) {
+  const spec = CLI_TOOLS[sourceLayer];
+  if (!spec) {
+    return null;
+  }
+  const base = { tool: spec.tool, available: null, upgrade_command: spec.upgrade_command };
+  if (process.env.GATEWAY_CLI_UPDATE_DISABLE === '1') {
+    return { ...base, note: 'disabled by GATEWAY_CLI_UPDATE_DISABLE' };
+  }
+  const bin = spec.tool === 'bce'
+    ? (process.env.BCE_CLI_BIN || 'bce')
+    : (process.env.QIANFAN_CLI_BIN || 'qianfan');
+  const versionOut = runProbe(bin, [spec.tool === 'bce' ? 'version' : '--version']);
+  if (versionOut === null) {
+    return { ...base, note: `${spec.tool} not found; CLI update check skipped` };
+  }
+  // Only the first line names the version; a dev build ("dev") has no semver,
+  // so keep its last token for cache keying.
+  const versionLine = versionOut.trim().split('\n')[0].trim();
+  const currentSemver = firstSemver(versionLine);
+  const current = currentSemver || versionLine.split(/\s+/).pop().slice(0, 40) || null;
+
+  const cached = readCliCache(spec.tool, current, now);
+  if (cached) {
+    return { ...base, current, latest: cached.latest, available: cached.available, cached: true };
+  }
+
+  let latest = null;
+  let available = null;
+  if (spec.tool === 'bce') {
+    // `bce upgrade --dry-run` still asks "upgrade? [y/N]"; answer "n" so a
+    // check can never turn into an upgrade.
+    const out = runProbe(bin, ['upgrade', '--dry-run'], 'n\n');
+    latest = labeledLatest(out);
+    if (latest) {
+      available = currentSemver
+        ? compareSemver(latest, currentSemver) > 0
+        : /发现新版本|new version|newer version/i.test(out);
+    }
+  } else {
+    const out = runProbe(process.env.GATEWAY_NPM_BIN || 'npm',
+      ['view', QIANFAN_NPM_PACKAGE, 'version', '--registry', QIANFAN_NPM_REGISTRY]);
+    latest = firstSemver(out);
+    // npm only publishes semver, so a non-semver local build (e.g. "dev") stays
+    // inconclusive here, unlike bce, whose own output says whether it is newer.
+    if (latest && currentSemver) {
+      available = compareSemver(latest, currentSemver) > 0;
+    }
+  }
+  writeCliCache(spec.tool, { checked_at: now, current, latest, available });
+  return { ...base, current, latest, available };
+}
+
 function parseArgs(argv) {
   const positional = [];
   const opts = { dryRun: false };
@@ -816,12 +972,17 @@ async function main(argv) {
   let result;
   if (opts.action === 'check-update') {
     result = { action: 'check-update', skill: opts.skill || null, update: checkUpdate(opts.skill) };
+    const cliUpdate = checkCliUpdate(opts.sourceLayer);
+    if (cliUpdate) {
+      result.cli_update = cliUpdate;
+    }
   } else if (opts.action === 'report') {
     result = await runReport(opts);
   } else {
     const update = checkUpdate(opts.skill);
+    const cliUpdate = checkCliUpdate(opts.sourceLayer);
     const reported = await runReport(opts);
-    result = { action: 'preflight', update, ...reported };
+    result = { action: 'preflight', update, ...(cliUpdate ? { cli_update: cliUpdate } : {}), ...reported };
   }
   process.stdout.write(JSON.stringify(result, null, 2) + '\n');
   return 0; // fail-open: never block the workflow on gateway outcomes
@@ -829,7 +990,7 @@ async function main(argv) {
 
 const internals = {
   buildAuthorization, buildSignedReport, resolveAttribution, resolveDetail, userAgent,
-  loadOauthCredentials, checkUpdate, generateEventId, sendReport, main,
+  loadOauthCredentials, checkUpdate, checkCliUpdate, generateEventId, sendReport, main,
 };
 
 export { internals, main };

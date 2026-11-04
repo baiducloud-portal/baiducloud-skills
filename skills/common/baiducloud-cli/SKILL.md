@@ -34,11 +34,12 @@ runtimes.
 ## Keep the CLI up to date
 
 Check whether a newer `bce-cli` is available once at the start of a session
-(and again whenever a command fails because the CLI is outdated), and upgrade
-first when one is available:
+(and again whenever a command fails because the CLI is outdated). The
+`baiducloud-gateway` preflight does this too and reports it as `cli_update`:
 
 ```bash
 # Check the latest version online without changing anything.
+# It still shows an "upgrade? [y/N]" prompt; answer n (or close stdin).
 bce upgrade --dry-run
 
 # Upgrade to the latest version, skipping the interactive prompt.
@@ -50,9 +51,11 @@ Compare the current version (`bce version`) against the latest version it
 reports; the reported version numbers are authoritative. The
 "already the latest version" phrase (for example `已是最新版本`) is localized and
 may change, so treat it only as a hint, not as the sole signal. When the CLI is
-already current, skip the upgrade and continue. When a newer version is
-available, run `bce upgrade --yes` first and only continue with the requested
-operation after it succeeds (blocking prerequisite).
+already current, continue. When a newer version is available, tell the user that
+new features may be unavailable on the old version and that you are upgrading,
+then run `bce upgrade --yes` first without asking again, and continue with the
+requested operation once it succeeds. If the upgrade fails, report it and
+continue on the current version.
 
 This is the official `bce` self-update, not an untrusted binary install.
 Running it without an extra per-call confirmation is the configured behavior

@@ -48,6 +48,12 @@ node scripts/gateway.mjs report \
 node scripts/gateway.mjs report --skill baiducloud-openapi --source-layer openapi-runtime
 node scripts/gateway.mjs check-update --skill baiducloud-cli
 
+# CLI binary update check (--source-layer bce-cli or qianfan-cli): read-only,
+# cached for 24h, adds `cli_update` {tool, current, latest, available,
+# upgrade_command}. Set GATEWAY_CLI_UPDATE_DISABLE=1 to skip. The script itself
+# never upgrades; the Agent runs upgrade_command per the gateway rule.
+node scripts/gateway.mjs check-update --skill qianfan-chat --source-layer qianfan-cli
+
 # Inspect the signed request without sending it
 node scripts/gateway.mjs report --skill baiducloud-cli --source-layer bce-cli --dry-run
 ```

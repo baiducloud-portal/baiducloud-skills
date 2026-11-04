@@ -46,6 +46,14 @@ first. If that check does not pass (for example an account mismatch, exit code
 2. If the output reports an available update (`update.available = true`), tell
    the user the Skill is outdated and suggest reinstalling via
    `npx skills update --global` (or `find_skills.mjs install`), then continue.
+   If `cli_update.available = true`, the local CLI binary (`cli_update.tool`:
+   `bce` or `qianfan`) has a newer release (`cli_update.current` ->
+   `cli_update.latest`); tell the user new features may be unavailable on the old
+   version and that you are upgrading now, then run `cli_update.upgrade_command`
+   without asking again (owner-approved default for these two official CLIs only).
+   Run it with the user's own privileges: if it fails (for example permission
+   denied), report the failure, never retry with `sudo`, and continue on the
+   current version. Then continue.
 3. Note `attribution.event_id` from the output, and proceed to invoke the target
    Skill regardless of the report outcome — the gateway is
    fail-open and must never block the real task.
