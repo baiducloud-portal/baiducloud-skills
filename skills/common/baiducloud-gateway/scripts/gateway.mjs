@@ -53,7 +53,12 @@ const ERROR_CATEGORIES = new Set([
 // cannot be smuggled into a report.
 const TOKEN_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 const OPERATION_RE = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,63}$/;
-const EVENT_ID_RE = /^baiducloud-skills-[0-9a-fA-F-]{8,64}$/;
+// event_id identifies one Skill invocation (joins invoke/result), session_id one
+// conversation, turn_id one user turn. The legacy baiducloud-skills- prefix is
+// still accepted for event_id so ids issued by older rules keep working.
+const EVENT_ID_RE = /^(bcs-e|baiducloud-skills)-[0-9a-fA-F-]{8,64}$/;
+const SESSION_ID_RE = /^bcs-s-[0-9a-fA-F-]{8,64}$/;
+const TURN_ID_RE = /^bcs-t-[0-9a-fA-F-]{8,64}$/;
 const HTTP_STATUS_RE = /^\d{3}$/;
 // Service-side request id: an opaque identifier (UUID-like), 8-64 chars.
 const REQUEST_ID_RE = /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/;
@@ -411,7 +416,15 @@ function loadOauthCredentials(now = new Date(), { allowRenew = true } = {}) {
 }
 
 function generateEventId() {
-  return `baiducloud-skills-${crypto.randomUUID()}`;
+  return `bcs-e-${crypto.randomUUID()}`;
+}
+
+function generateSessionId() {
+  return `bcs-s-${crypto.randomUUID()}`;
+}
+
+function generateTurnId() {
+  return `bcs-t-${crypto.randomUUID()}`;
 }
 
 // Accept a value only when it is an identifier-like token; otherwise fall back
@@ -449,12 +462,24 @@ function resolveAttribution(opts, ignored = []) {
     ignored.push('event_id');
     eventId = undefined;
   }
+  let sessionId = opts.sessionId;
+  if (sessionId !== undefined && !SESSION_ID_RE.test(sessionId)) {
+    ignored.push('session_id');
+    sessionId = undefined;
+  }
+  let turnId = opts.turnId;
+  if (turnId !== undefined && !TURN_ID_RE.test(turnId)) {
+    ignored.push('turn_id');
+    turnId = undefined;
+  }
   return {
     caller_type: CALLER_TYPES.has(callerType) ? callerType : 'ai_agent',
     caller_name: callerName,
     skill_name: skillName,
     source_layer: sourceLayer,
     event_id: eventId || generateEventId(),
+    session_id: sessionId || generateSessionId(),
+    turn_id: turnId || generateTurnId(),
   };
 }
 
@@ -588,6 +613,8 @@ function buildSignedReport(attr, now = new Date(), { allowRenew = true, detail =
     skill_name: attr.skill_name,
     source_layer: attr.source_layer,
     event_id: attr.event_id,
+    session_id: attr.session_id,
+    turn_id: attr.turn_id,
     reported_at: isoTimestamp(now),
     ...detail,
   });
@@ -863,6 +890,8 @@ function parseArgs(argv) {
     '--caller-type': 'callerType',
     '--caller-name': 'callerName',
     '--event-id': 'eventId',
+    '--session-id': 'sessionId',
+    '--turn-id': 'turnId',
     '--intent': 'intent',
     '--operation': 'operation',
     '--outcome': 'outcome',
@@ -909,6 +938,17 @@ async function runReport(opts, now = new Date()) {
   const ignored = [];
   const attribution = resolveAttribution(opts, ignored);
   const detail = resolveDetail(opts, ignored);
+  // A result report that was not handed the conversation/turn ids has nothing
+  // true to say about them: omit rather than invent ids unrelated to the
+  // preflight (the backend still joins the result to its invoke by event_id).
+  if (detail.event === 'result') {
+    if (attribution.session_id !== opts.sessionId) {
+      delete attribution.session_id;
+    }
+    if (attribution.turn_id !== opts.turnId) {
+      delete attribution.turn_id;
+    }
+  }
   const out = { action: 'report', attribution, detail, user_agent: userAgent() };
   if (ignored.length) {
     // Names only (never values): tells the caller which inputs were rejected.
@@ -990,7 +1030,7 @@ async function main(argv) {
 
 const internals = {
   buildAuthorization, buildSignedReport, resolveAttribution, resolveDetail, userAgent,
-  loadOauthCredentials, checkUpdate, checkCliUpdate, generateEventId, sendReport, main,
+  loadOauthCredentials, checkUpdate, checkCliUpdate, generateEventId, generateSessionId, generateTurnId, sendReport, main,
 };
 
 export { internals, main };

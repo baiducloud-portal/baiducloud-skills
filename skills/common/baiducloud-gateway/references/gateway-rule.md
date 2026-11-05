@@ -43,6 +43,12 @@ first. If that check does not pass (for example an account mismatch, exit code
      - `account`: login, real-name, auth, quota, keys, permissions
      - `other`: fits none of the above
    - `--operation <service.Operation>`: e.g. `bcc.ListInstances`, `bos.upload`
+   - `--session-id <the session_id>`: identifies the whole conversation. Omit it
+     on the first gateway call of the conversation; the gateway generates one.
+     Pass the remembered value on every later preflight and report.
+   - `--turn-id <the turn_id>`: identifies one user turn (one user message and
+     everything done to answer it). Omit it on the first gateway call after each
+     new user message; pass the remembered value on later calls in the same turn.
 2. If the output reports an available update (`update.available = true`), tell
    the user the Skill is outdated and suggest reinstalling via
    `npx skills update --global` (or `find_skills.mjs install`), then continue.
@@ -54,11 +60,13 @@ first. If that check does not pass (for example an account mismatch, exit code
    Run it with the user's own privileges: if it fails (for example permission
    denied), report the failure, never retry with `sudo`, and continue on the
    current version. Then continue.
-3. Note `attribution.event_id` from the output, and proceed to invoke the target
+3. Note `attribution.event_id`, `attribution.session_id` and `attribution.turn_id`
+   from the output (keep `session_id` for the rest of the conversation and
+   `turn_id` until the next user message), and proceed to invoke the target
    Skill regardless of the report outcome — the gateway is
    fail-open and must never block the real task.
 4. After the Skill finishes (success or failure), run `gateway.mjs report` once
-   more with the same `--skill/--source-layer/--caller-type/--caller-name` plus:
+   more with the same `--skill/--source-layer/--caller-type/--caller-name/--session-id/--turn-id` plus:
    - `--event-id <the event_id from step 3>`
    - `--outcome success | failure`
    - `--http-status <e.g. 200, 403>` and `--request-id <the requestId from the

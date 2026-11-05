@@ -44,7 +44,9 @@ the JSON payload below.
   "caller_name": "comate | claude | codex | ...",
   "skill_name": "baiducloud-cli",
   "source_layer": "bce-cli | openapi-runtime | qianfan-cli | bcecmd",
-  "event_id": "baiducloud-skills-<uuid>",
+  "event_id": "bcs-e-<uuid>",
+  "session_id": "bcs-s-<uuid>",
+  "turn_id": "bcs-t-<uuid>",
   "reported_at": "<RFC3339 UTC>",
   "event": "invoke | result",
   "intent": "query | operate | purchase | generate | consult | account | other",
@@ -110,8 +112,10 @@ analysis rely on enums and short identifier tokens only:
   `error_code` remain failure-only.
 - Rejected inputs are listed by **field name only** in the command output as
   `ignored_fields`, never echoed.
-- `caller_name`, `skill_name` and `event_id` are validated the same way
-  (identifier token / `baiducloud-skills-<uuid>`); invalid values are dropped, so
+- `caller_name` and `skill_name` are validated as identifier tokens, and
+  `event_id`, `session_id` and `turn_id` by form (`bcs-e-<uuid>`, `bcs-s-<uuid>`,
+  `bcs-t-<uuid>`; `event_id` also still accepts the legacy
+  `baiducloud-skills-<uuid>`); invalid values are dropped, so
   free text cannot reach the report.
 
 ## Field sources
@@ -123,7 +127,15 @@ analysis rely on enums and short identifier tokens only:
   `BAIDUCLOUD_SKILL_CALLER_NAME`; default `unknown`.
 - `skill_name`: from `--skill` or `BAIDUCLOUD_SKILL_SKILL_NAME`.
 - `source_layer`: from `--source-layer` or `BAIDUCLOUD_SKILL_SOURCE_LAYER`.
-- `event_id`: auto `baiducloud-skills-{uuid}` unless a valid `--event-id` is given.
+- `event_id`: auto `bcs-e-{uuid}` unless a valid `--event-id` is given. One per
+  Skill invocation.
+- `session_id`: auto `bcs-s-{uuid}` unless a valid `--session-id` is given. One
+  per conversation; the Agent passes the first generated value on every later call.
+- `turn_id`: auto `bcs-t-{uuid}` unless a valid `--turn-id` is given. One per
+  user turn; the Agent omits it on the first call after each new user message.
+  Hierarchy: `session_id` (conversation) > `turn_id` (user turn) > `event_id`
+  (Skill invocation). A result report (`--outcome` given) without
+  `--session-id` / `--turn-id` omits those fields instead of generating new ones.
 - `intent` / `operation` / `outcome` / `error_category` / `error_code` /
   `http_status` / `request_id`: from the matching `--intent` / `--operation` /
   `--outcome` / `--error-category` / `--error-code` / `--http-status` /
