@@ -144,7 +144,7 @@
     {
       "repo": "baidubce/baiducloud-aiops-skills",
       "homepage": "https://github.com/baidubce/baiducloud-aiops-skills",
-      "description": "Baidu Intelligent Cloud AIOps skills: diagnosis, audit, and monitoring management for BCC, VPC/CSN/DNS networking, APM/BCM observability, Hermes LLM tracing, BLS logging, and BOS storage.",
+      "description": "Baidu Intelligent Cloud AIOps skills: diagnosis, audit, and monitoring management for BCC, VPC/CSN/DNS/BLB networking, APM/BCM observability, Hermes LLM tracing, BLS logging, BOS storage, and databases (RDS, Redis, MongoDB, DTS, DBSC) with billing and IAM.",
       "skills": [
         {
           "name": "baiducloud-vm-diagnosis",
@@ -413,6 +413,167 @@
             "合规",
             "审计",
             "audit"
+          ]
+        },
+        {
+          "name": "baiducloud-blb",
+          "domain": "network",
+          "summary": "管理百度云负载均衡 BLB/AppBLB：实例、监听器、后端服务器、服务器组、转发策略、健康检查、安全组、计费询价与巡检",
+          "keywords": [
+            "blb",
+            "appblb",
+            "负载均衡",
+            "load-balancer",
+            "监听器",
+            "后端服务器",
+            "健康检查",
+            "服务器组",
+            "转发策略",
+            "vip",
+            "bce-cli"
+          ]
+        },
+        {
+          "name": "baiducloud-data-intelligence-dbsc",
+          "domain": "database",
+          "summary": "数据库智能驾驶舱 DBSC：RDS/GaiaDB/Redis/MongoDB 的巡检报告、慢 SQL、会话与死锁、空间分析、大 Key、SQL 限流与诊断",
+          "keywords": [
+            "dbsc",
+            "数据库",
+            "巡检",
+            "健康度",
+            "慢sql",
+            "死锁",
+            "会话",
+            "空间分析",
+            "大key",
+            "诊断",
+            "rds",
+            "gaiadb",
+            "redis",
+            "mongodb"
+          ]
+        },
+        {
+          "name": "baiducloud-data-intelligence-dts",
+          "domain": "database",
+          "summary": "查询与管理百度智能云 DTS 数据传输：迁移/同步/校验任务的创建、预检、启停、数据校验与一键反向",
+          "keywords": [
+            "dts",
+            "数据传输",
+            "数据迁移",
+            "数据同步",
+            "数据校验",
+            "迁移任务",
+            "同步任务",
+            "预检",
+            "一键反向",
+            "database"
+          ]
+        },
+        {
+          "name": "baiducloud-data-intelligence-mongodb",
+          "domain": "database",
+          "summary": "查询与管理百度智能云 DocDB for MongoDB：实例、备份恢复、白名单、用户与库、日志、扩容与重启",
+          "keywords": [
+            "mongodb",
+            "docdb",
+            "文档数据库",
+            "实例",
+            "备份",
+            "恢复",
+            "白名单",
+            "扩容",
+            "重启",
+            "database"
+          ]
+        },
+        {
+          "name": "baiducloud-data-intelligence-rds",
+          "domain": "database",
+          "summary": "查询与管理百度智能云 RDS：实例、数据库、账号、备份/Binlog、参数与模板、白名单/SSL、只读组、日志与订单",
+          "keywords": [
+            "rds",
+            "mysql",
+            "postgresql",
+            "sqlserver",
+            "云数据库",
+            "实例",
+            "备份",
+            "binlog",
+            "参数",
+            "白名单",
+            "只读组",
+            "database"
+          ]
+        },
+        {
+          "name": "baiducloud-data-intelligence-bcm",
+          "domain": "database",
+          "summary": "查询与管理云监控 BCM：各云产品监控指标与曲线（含 Redis/SCS）、报警策略与历史、通知组、Dashboard、自定义监控",
+          "keywords": [
+            "bcm",
+            "云监控",
+            "监控指标",
+            "metric",
+            "报警",
+            "alarm",
+            "通知组",
+            "dashboard",
+            "scs",
+            "redis",
+            "database"
+          ]
+        },
+        {
+          "name": "baiducloud-data-intelligence-billing",
+          "domain": "database",
+          "summary": "查询百度智能云财务与账单：资源月账单、计费项账单、账户余额、成本分摊、订单与代金券（支付/续费/取消为禁止项）",
+          "keywords": [
+            "billing",
+            "账单",
+            "费用",
+            "余额",
+            "订单",
+            "代金券",
+            "成本",
+            "分摊",
+            "finance",
+            "续费"
+          ]
+        },
+        {
+          "name": "baiducloud-data-intelligence-iam",
+          "domain": "database",
+          "summary": "查询与管理 IAM 访问控制：子用户、用户组、权限策略、AccessKey 与授权关联",
+          "keywords": [
+            "iam",
+            "访问控制",
+            "子用户",
+            "用户组",
+            "权限策略",
+            "accesskey",
+            "授权",
+            "鉴权",
+            "policy",
+            "database"
+          ]
+        },
+        {
+          "name": "baiducloud-data-intelligence-redis",
+          "domain": "database",
+          "summary": "查询与管理百度智能云 Redis/SCS：实例、账号、备份、白名单、参数与模板、日志、安全组、热活/多活实例组与订单",
+          "keywords": [
+            "redis",
+            "scs",
+            "缓存",
+            "实例",
+            "备份",
+            "白名单",
+            "参数",
+            "热活",
+            "多活",
+            "database"
           ]
         }
       ]

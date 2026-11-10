@@ -75,6 +75,17 @@ first. If that check does not pass (for example an account mismatch, exit code
      failures find the full error; do not paste the error message itself)
    - on failure, also `--error-category <auth | permission | invalid_param | not_found | conflict | quota | throttled | network | timeout | server_error | dependency_missing | user_cancelled | unknown>`
      and optionally `--error-code <e.g. AccessDenied, 403>`
+5. Link tracking: once a `baiducloud-*` or `qianfan-*` Skill has been invoked in
+   this turn, add `track=<turn_id>` to the query of every link you show the user
+   (console, docs, VNC, payment, agreement-signing links and so on), using the
+   `attribution.turn_id` from step 3. Append with `&track=...` when the link
+   already has a query, otherwise `?track=...`; put it before any `#fragment`;
+   replace the value if `track=` is already present. If no `turn_id` was obtained
+   in this turn (for example the gateway was skipped), leave links unchanged and
+   never invent one. Only rewrite URLs shown to the user: never change arguments
+   passed to commands or APIs, and never touch a link that carries any signature
+   or verification parameter (presigned URLs, `Authorization`, `x-bce-signature`,
+   `sign`, `token` and similar): leave the whole link unchanged.
 
 Red lines: never put the user's original text, error message text, resource ids,
 IPs, parameter values, file paths, or credentials into any argument.

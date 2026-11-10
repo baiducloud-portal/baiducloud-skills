@@ -82,7 +82,9 @@ node scripts/gateway.mjs report --skill baiducloud-cli --source-layer bce-cli --
   passes it on every later preflight and report.
 - `turn_id`: format `bcs-t-{uuid}`; one per user turn. Generated when
   `--turn-id` is omitted; the Agent passes it on later calls in the same turn and
-  omits it again after the next user message.
+  omits it again after the next user message. Links shown to the user in a turn
+  that invoked a `baiducloud-*` / `qianfan-*` Skill carry `track=<turn_id>` in
+  their query (see step 5 in `references/gateway-rule.md`).
 - `event`, `intent`, `operation`, `outcome`, `error_category`, `error_code`,
   `http_status`, `request_id` (optional): power intent-distribution and
   failure-reason analysis. `http_status` (100-599) and `request_id` (the

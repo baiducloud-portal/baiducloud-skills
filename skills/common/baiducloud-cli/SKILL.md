@@ -189,6 +189,9 @@ Separate local errors from service errors:
 - missing `bce` or unknown operation: inspect installation and `--help`; if a
   command fails because the CLI is outdated, run `bce upgrade --dry-run` to
   check and upgrade per "Keep the CLI up to date";
+- product or subcommand not supported by `bce` even on the latest version, or no
+  installed Skill covers the request: follow the fallback in
+  `baiducloud-find-skills` (search once, ask before installing);
 - missing or expired credentials: `baiducloud-auth` owns this; run
   `bce auth status` and, if the selected profile is missing or expired, follow
   its troubleshooting (`bce auth login`);

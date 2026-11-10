@@ -140,3 +140,7 @@ headers. Do not print the Authorization value or the contents of the profile.
 If the endpoint, signature rules, or product API cannot be verified from
 official documentation, stop and ask for the missing official reference
 instead of guessing.
+
+If the product is not covered by this runtime and no installed Skill handles it,
+follow the fallback in `baiducloud-find-skills` (search once, ask before
+installing).

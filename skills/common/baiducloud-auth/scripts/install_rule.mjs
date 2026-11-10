@@ -6,7 +6,12 @@
 //   comate  ~/.comate/rules/<name>.mdr        (frontmatter alwaysApply: true)
 //   claude  ~/.claude/rules/<name>.md
 //   codex   ~/.codex/AGENTS.md                (marker block, replaced in place)
+//   codebuddy ~/.codebuddy/rules/<name>.md    (frontmatter alwaysApply: true)
+//   workbuddy $WORKBUDDY_CONFIG_DIR/rules/<name>.md (default ~/.workbuddy; frontmatter alwaysApply: true)
+//   qoder   ~/.qoder/rules/<name>.md          (frontmatter alwaysApply + trigger: always_on)
+//   kimi    $KIMI_CODE_HOME/AGENTS.md         (default ~/.kimi-code; marker block)
 //   cursor  <project>/.cursor/rules/<name>.mdc (project level only, --project)
+//   trae    <project>/.trae/rules/<name>.md    (project level only, --project)
 //
 // Runs without confirmation and is idempotent: an unchanged file is left alone,
 // a changed one is rewritten, and symlinked targets are never written through.
@@ -26,13 +31,16 @@ const RULE = {
   comateName: 'qianfan-gate',
 };
 
-const HOST_NAMES = ['comate', 'claude', 'codex'];
-const HELP = `Usage: install_rule.mjs [--host comate|claude|codex|all[,...]] [--project <dir>]
-                        [--dry-run] [--uninstall]
+// Auto-detected hosts; Cursor and Trae are project-level only and come in via --project.
+const HOST_NAMES = ['comate', 'claude', 'codex', 'codebuddy', 'qoder', 'kimi', 'workbuddy'];
+const HELP = `Usage: install_rule.mjs [--host comate|claude|codex|codebuddy|qoder|kimi|workbuddy|all[,...]]
+                        [--project <dir>] [--dry-run] [--uninstall]
 
 Installs the ${RULE.skill} always-apply rule into host Agents. Without --host,
-every host whose config directory exists (~/.comate, ~/.claude, ~/.codex) is used.
---project <dir> also writes the Cursor project rule <dir>/.cursor/rules/.
+every host whose config directory exists (~/.comate, ~/.claude, ~/.codex,
+~/.codebuddy, ~/.qoder, $KIMI_CODE_HOME or ~/.kimi-code, $WORKBUDDY_CONFIG_DIR or ~/.workbuddy) is used.
+--project <dir> also writes the Cursor project rule <dir>/.cursor/rules/ and
+the Trae project rule <dir>/.trae/rules/.
 --dry-run reports what would change; --uninstall removes the rule.
 `;
 
@@ -66,12 +74,31 @@ function readRule() {
   return extractBody(fs.readFileSync(file, 'utf-8'));
 }
 
+// WorkBuddy keeps its user config under WORKBUDDY_CONFIG_DIR (default ~/.workbuddy).
+function workbuddyRoot() {
+  const env = process.env.WORKBUDDY_CONFIG_DIR?.trim();
+  return env ? path.resolve(expandHome(env)) : path.join(os.homedir(), '.workbuddy');
+}
+
+// Kimi Code keeps its data under KIMI_CODE_HOME (default ~/.kimi-code).
+function kimiRoot() {
+  const env = process.env.KIMI_CODE_HOME;
+  return env ? path.resolve(expandHome(env)) : path.join(os.homedir(), '.kimi-code');
+}
+
 function hostSpec(host) {
   const h = os.homedir();
+  const kimi = kimiRoot();
+  const wb = workbuddyRoot();
   const specs = {
     comate: { root: path.join(h, '.comate'), file: path.join(h, '.comate', 'rules', `${RULE.comateName}.mdr`), kind: 'mdr', skillsRoot: '~/.comate/skills' },
     claude: { root: path.join(h, '.claude'), file: path.join(h, '.claude', 'rules', `${RULE.name}.md`), kind: 'claude', skillsRoot: '~/.claude/skills' },
     codex: { root: path.join(h, '.codex'), file: path.join(h, '.codex', 'AGENTS.md'), kind: 'block', skillsRoot: '~/.codex/skills' },
+    codebuddy: { root: path.join(h, '.codebuddy'), file: path.join(h, '.codebuddy', 'rules', `${RULE.name}.md`), kind: 'mdfm', skillsRoot: '~/.codebuddy/skills' },
+    workbuddy: { root: wb, file: path.join(wb, 'rules', `${RULE.name}.md`), kind: 'mdfm', skillsRoot: path.join(wb, 'skills') },
+    qoder: { root: path.join(h, '.qoder'), file: path.join(h, '.qoder', 'rules', `${RULE.name}.md`), kind: 'qoder', skillsRoot: '~/.qoder/skills' },
+    // Kimi Code CLI reads the shared ~/.agents/skills (skills --agent kimi-code-cli installs there).
+    kimi: { root: kimi, file: path.join(kimi, 'AGENTS.md'), kind: 'block', skillsRoot: '~/.agents/skills' },
   };
   return specs[host];
 }
@@ -84,8 +111,9 @@ const BLOCK_SRC = `${escapeRe(BEGIN)}[\\s\\S]*?${escapeRe(END)}`;
 
 export function render(kind, rule, skillsRoot) {
   const rest = resolveSkillDirs(rule.rest, skillsRoot);
-  const frontmatter = `---\ndescription: ${JSON.stringify(rule.title)}\nalwaysApply: true\n---\n\n`;
-  if (kind === 'mdr' || kind === 'mdc') return `${frontmatter}# ${rule.title}\n\n${SOURCE}\n\n${rest}\n`;
+  const always = kind === 'qoder' ? 'alwaysApply: true\ntrigger: always_on' : 'alwaysApply: true';
+  const frontmatter = `---\ndescription: ${JSON.stringify(rule.title)}\n${always}\n---\n\n`;
+  if (['mdr', 'mdc', 'mdfm', 'qoder'].includes(kind)) return `${frontmatter}# ${rule.title}\n\n${SOURCE}\n\n${rest}\n`;
   if (kind === 'claude') return `# ${rule.title}\n\n${SOURCE}\n\n${rest}\n`;
   return `${BEGIN}\n# ${rule.title}\n\n${rest}\n${END}`;
 }
@@ -194,9 +222,15 @@ export function main(argv) {
       kind: 'mdc',
       skillsRoot: '~/.cursor/skills',
     });
+    targets.push({
+      host: 'trae',
+      file: path.join(opts.project, '.trae', 'rules', `${RULE.name}.md`),
+      kind: 'mdfm',
+      skillsRoot: '~/.trae/skills',
+    });
   }
   if (!targets.length) {
-    process.stderr.write(`no supported host detected (looked for ~/.comate, ~/.claude, ~/.codex); pass --host or --project\n${HELP}`);
+    process.stderr.write(`no supported host detected (looked for ~/.comate, ~/.claude, ~/.codex, ~/.codebuddy, ~/.qoder, $KIMI_CODE_HOME or ~/.kimi-code, $WORKBUDDY_CONFIG_DIR or ~/.workbuddy); pass --host or --project\n${HELP}`);
     return 1;
   }
   const rule = opts.uninstall ? null : readRule();
