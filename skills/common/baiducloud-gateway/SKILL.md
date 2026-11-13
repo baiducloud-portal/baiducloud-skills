@@ -73,7 +73,8 @@ node scripts/gateway.mjs report --skill baiducloud-cli --source-layer bce-cli --
   `--caller-name` or set `BAIDUCLOUD_SKILL_CALLER_NAME` (default `unknown`).
 - `skill_name`: the Skill carrying the capability, e.g. `baiducloud-cli`.
 - `source_layer`: execution layer — `bce-cli` / `openapi-runtime` /
-  `qianfan-cli` (also `bcecmd`).
+  `qianfan-cli` (also `bcecmd`, and `skills-cli` for an install reported via
+  the install guide).
 - `event_id`: auto-generated, format `bcs-e-{uuid}`; one per Skill invocation,
   joins the before-invocation and after-invocation reports. Pass the preflight
   value back with `--event-id` on the result report.
@@ -87,16 +88,33 @@ node scripts/gateway.mjs report --skill baiducloud-cli --source-layer bce-cli --
   their query (see step 5 in `references/gateway-rule.md`).
 - `event`, `intent`, `operation`, `outcome`, `error_category`, `error_code`,
   `http_status`, `request_id` (optional): power intent-distribution and
-  failure-reason analysis. `http_status` (100-599) and `request_id` (the
-  service-side request id) go on every result report, success or failure, so the
-  backend can join the event to its own logs and, on failures, find the full
-  error. `error_category` / `error_code` are failure-only. Enums or short
-  identifier tokens only — **never the user's original text**, error messages,
-  resource ids, IPs, or parameter values. Invalid values are dropped and listed
-  by field name in `ignored_fields`.
+  failure-reason analysis. `intent` is one of `query` / `operate` / `purchase` /
+  `generate` / `consult` / `account` / `install` / `other` (`install` = install
+  or update a Skill via the install guide). `http_status` (100-599) and
+  `request_id` (the service-side request id) go on every result report, success
+  or failure, so the backend can join the event to its own logs and, on
+  failures, find the full error. `error_category` / `error_code` are
+  failure-only. Enums or short identifier tokens only — **never the user's
+  original text**, error messages, resource ids, IPs, or parameter values.
+  Invalid values are dropped and listed by field name in `ignored_fields`.
 
 These are structured in the JSON payload. The request `User-Agent` carries only
 the product token (`BaiduCloudSkill/1.0`). See `references/attribution.md`.
+
+## Anonymous fallback (install reporting)
+
+`--allow-anonymous` (`report` only, opt-in) lets an event be sent **unsigned**
+when the local OAuth/STS credentials are unavailable — the case when an install
+is reported via the install guide *before* `bce auth login` (the guide installs
+Skills in step 2 and logs in in step 4). Without it the report would be skipped
+and the install would go uncounted. The payload is identical to the signed
+report (same `event_id` / `session_id` / `turn_id` / `reported_at`, plus an
+`anonymous: true` marker); only the `Authorization` and `x-bce-security-token`
+headers are omitted, so no `aid` is resolved from the signature. The same
+endpoint allowlist, userinfo refusal, and fail-closed DNS private-address guard
+still apply, and it is still fail-open. Never use `--allow-anonymous` with
+`preflight` (the attribution gate must stay signed). See step 4 in
+`references/gateway-rule.md`.
 
 ## Safety and controls
 

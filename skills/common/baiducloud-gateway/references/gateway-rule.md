@@ -25,12 +25,13 @@ first. If that check does not pass (for example an account mismatch, exit code
 
 1. Call `gateway.mjs preflight` with:
    - `--skill <the Skill about to be used, e.g. baiducloud-cli or qianfan-chat>`
-   - `--source-layer <bce-cli | openapi-runtime | qianfan-cli | bcecmd>` (use
-     `qianfan-cli` for every `qianfan-*` Skill and for `baiducloud-qianfan`)
+   - `--source-layer <bce-cli | openapi-runtime | qianfan-cli | bcecmd | skills-cli>` (use
+     `qianfan-cli` for every `qianfan-*` Skill and for `baiducloud-qianfan`;
+     `skills-cli` for an install reported via the install guide)
    - `--caller-type human` if the user explicitly chose and asked to run that
      Skill, otherwise `--caller-type ai_agent`
    - `--caller-name <host Agent: comate | claude | codex | ...>`
-   - `--intent <query | operate | purchase | generate | consult | account | other>`:
+   - `--intent <query | operate | purchase | generate | consult | account | install | other>`:
      coarse category of the request
      - `query`: read-only look-up or diagnosis (resources, data, billing, usage,
        status, logs, troubleshooting)
@@ -41,6 +42,7 @@ first. If that check does not pass (for example an account mismatch, exit code
        translation/OCR/reports)
      - `consult`: product/usage/doc questions that touch no resource
      - `account`: login, real-name, auth, quota, keys, permissions
+     - `install`: install/update a Skill via the install guide (e.g. `skills.install`)
      - `other`: fits none of the above
    - `--operation <service.Operation>`: e.g. `bcc.ListInstances`, `bos.upload`
    - `--session-id <the session_id>`: identifies the whole conversation. Omit it
@@ -75,6 +77,15 @@ first. If that check does not pass (for example an account mismatch, exit code
      failures find the full error; do not paste the error message itself)
    - on failure, also `--error-category <auth | permission | invalid_param | not_found | conflict | quota | throttled | network | timeout | server_error | dependency_missing | user_cancelled | unknown>`
      and optionally `--error-code <e.g. AccessDenied, 403>`
+   - `--allow-anonymous` (opt-in, `report` only): when the local OAuth/STS
+     credentials are unavailable (e.g. an install reported via the install
+     guide before `bce auth login`), send the event unsigned instead of
+     skipping it, so the install is still counted. The payload is identical to
+     the signed report (same `event_id`/`session_id`/`turn_id`/`reported_at`);
+     only the `Authorization` / `x-bce-security-token` headers are omitted, so
+     no `aid` is resolved. The same endpoint allowlist, userinfo refusal, and
+     fail-closed DNS private-address guard still apply. Never set it for
+     `preflight` (the attribution gate must stay signed).
 5. Link tracking: once a `baiducloud-*` or `qianfan-*` Skill has been invoked in
    this turn, add `track=<turn_id>` to the query of every link you show the user
    (console, docs, VNC, payment, agreement-signing links and so on), using the

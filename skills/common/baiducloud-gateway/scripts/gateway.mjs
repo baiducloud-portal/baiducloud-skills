@@ -27,7 +27,7 @@ import { pathToFileURL } from 'node:url';
 const DEFAULT_ENDPOINT = 'https://cloud.baidu.com/api/baiducloud_skill/behavior';
 const ALLOWED_SUFFIXES = ['baidubce.com', 'baidu-int.com', 'baidu.com'];
 const UA_PRODUCT = 'BaiduCloudSkill/1.0';
-const SOURCE_LAYERS = new Set(['bce-cli', 'openapi-runtime', 'qianfan-cli', 'bcecmd']);
+const SOURCE_LAYERS = new Set(['bce-cli', 'openapi-runtime', 'qianfan-cli', 'bcecmd', 'skills-cli']);
 const CALLER_TYPES = new Set(['human', 'ai_agent']);
 
 // Coarse request intent and invocation outcome, used for intent-distribution and
@@ -41,6 +41,7 @@ const INTENTS = new Set([
   'generate', // 生成创作: content-producing work (picture book/PPT/poster/image/video/copy, translate/OCR/report)
   'consult', // 咨询问答: product/usage/docs questions that touch no resources
   'account', // 账户权限: login, real-name, auth, quota, keys, permissions
+  'install', // 安装: install/update a Skill via the install guide (e.g. skills.install)
   'other', // unclassified; an unknown value is normalized to this
 ]);
 const OUTCOMES = new Set(['success', 'failure']);
@@ -602,7 +603,11 @@ function buildSignedReport(attr, now = new Date(), { allowRenew = true, detail =
   }
   const credentials = loadOauthCredentials(now, { allowRenew });
   if (!credentials) {
-    return { skipped: "no usable OAuth/STS credentials (expired or not logged in); run 'bce auth login'", endpoint };
+    return {
+      skipped: "no usable OAuth/STS credentials (expired or not logged in); run 'bce auth login'",
+      skip_reason: 'no_credentials',
+      endpoint,
+    };
   }
   // Payload carries only non-sensitive attribution fields plus the enumerated
   // intent/operation/outcome detail. aid is resolved server-side from the
@@ -645,9 +650,64 @@ function buildSignedReport(attr, now = new Date(), { allowRenew = true, detail =
   return { endpoint, hostname: parsed.hostname, local: devOk, headers, body, payload };
 }
 
-// Fail-closed DNS guard for the credential-bearing report: resolve the host and
-// refuse to send if it maps to a private/reserved address (DNS rebinding) or
-// cannot be resolved. Injectable lookup keeps it testable without real DNS.
+// Assemble an UNSIGNED POST for the attribution report. Used only as an opt-in
+// fallback when signed reporting is impossible because no OAuth/STS credentials
+// are available (e.g. the install guide reports an install before `bce auth
+// login`). The payload shape is identical to the signed report — same
+// attribution fields, same event_id/session_id/turn_id/reported_at — so the
+// backend records the install event (without an aid, since there is no
+// signature to resolve one) and install volume stays complete. aid is therefore
+// absent: it cannot be derived without a signature, and is never invented.
+//
+// The same endpoint + transport guards apply: https on an allowlisted Baidu
+// Cloud host (or a dev loopback), no userinfo, and a fail-closed DNS
+// private/reserved-address check before sending. The request carries no
+// Authorization or x-bce-security-token header.
+function buildAnonymousReport(attr, now = new Date(), { detail = {} } = {}) {
+  const endpoint = endpointOf();
+  const dev = reportDev();
+  const parsed = urlsplit(endpoint);
+  const scheme = parsed.scheme.toLowerCase();
+  const normalOk = scheme === 'https' && hostAllowed(parsed.hostname);
+  const devOk = dev && (scheme === 'http' || scheme === 'https') && isLoopbackHost(parsed.hostname);
+  if (parsed.username || parsed.password || (!normalOk && !devOk)) {
+    const need = dev
+      ? 'endpoint must be an https Baidu Cloud host, or a loopback http(s) host in dev mode, without userinfo'
+      : 'endpoint must be an https Baidu Cloud host without userinfo';
+    return { skipped: need, endpoint };
+  }
+  const payload = JSON.stringify({
+    caller_type: attr.caller_type,
+    caller_name: attr.caller_name,
+    skill_name: attr.skill_name,
+    source_layer: attr.source_layer,
+    event_id: attr.event_id,
+    session_id: attr.session_id,
+    turn_id: attr.turn_id,
+    reported_at: isoTimestamp(now),
+    anonymous: true,
+    ...detail,
+  });
+  const body = Buffer.from(payload, 'utf8');
+  const port = parsed.portRaw;
+  const defaultPort = scheme === 'http' ? '80' : '443';
+  const hostHeader = port && port !== defaultPort ? `${parsed.hostname}:${port}` : parsed.hostname;
+  // No Authorization, no x-bce-security-token: this is the unsigned variant.
+  const headers = {
+    Host: hostHeader,
+    'User-Agent': userAgent(),
+    'Content-Type': 'application/json',
+    'Content-Length': String(body.length),
+    'x-bce-date': isoTimestamp(now),
+    'x-bce-content-sha256': crypto.createHash('sha256').update(body).digest('hex'),
+  };
+  return { endpoint, hostname: parsed.hostname, local: devOk, headers, body, payload, anonymous: true };
+}
+
+// Fail-closed DNS guard for the outbound report (signed or anonymous): resolve
+// the host and refuse to send if it maps to a private/reserved address (DNS
+// rebinding) or cannot be resolved. Injectable lookup keeps it testable
+// without real DNS.
 async function assertGlobalEndpoint(hostname, lookup) {
   const resolver = lookup || ((h) => dns.promises.lookup(h, { all: true }));
   const addresses = await resolver(hostname);
@@ -883,7 +943,7 @@ function checkCliUpdate(sourceLayer, now = Date.now()) {
 
 function parseArgs(argv) {
   const positional = [];
-  const opts = { dryRun: false };
+  const opts = { dryRun: false, allowAnonymous: false };
   const map = {
     '--skill': 'skill',
     '--source-layer': 'sourceLayer',
@@ -904,6 +964,8 @@ function parseArgs(argv) {
     const token = argv[i];
     if (token === '--dry-run') {
       opts.dryRun = true;
+    } else if (token === '--allow-anonymous') {
+      opts.allowAnonymous = true;
     } else if (token in map) {
       i += 1;
       if (i >= argv.length) {
@@ -961,16 +1023,35 @@ async function runReport(opts, now = new Date()) {
   // dry-run must stay side-effect free: do not renew (which would rotate the
   // local STS state) when only assembling the request for inspection.
   const signed = buildSignedReport(attribution, now, { allowRenew: !opts.dryRun, detail });
-  if (signed.skipped) {
-    out.report = { sent: false, reason: signed.skipped, endpoint: safeEndpoint(signed.endpoint) };
+  // The opt-in anonymous fallback fires only on the missing-credentials skip
+  // reason, not on a bad endpoint — judged by the structured skip_reason marker
+  // (not by matching the human-readable reason text, which would break if the
+  // message were ever reworded).
+  let request = signed;
+  let mode = 'signed';
+  let anonymous = false;
+  if (signed.skipped && opts.allowAnonymous && signed.skip_reason === 'no_credentials') {
+    // Opt-in anonymous fallback: send the same event without a signature so an
+    // install reported before `bce auth login` is still counted. Only the
+    // missing-credentials case falls back; a bad endpoint stays skipped.
+    request = buildAnonymousReport(attribution, now, { detail });
+    mode = request.skipped ? 'skipped' : 'anonymous';
+    anonymous = !request.skipped;
+  } else if (signed.skipped) {
+    mode = 'skipped';
+  }
+  if (request.skipped) {
+    out.report = { sent: false, reason: request.skipped, mode, endpoint: safeEndpoint(request.endpoint) };
     return out;
   }
   // Expose the assembled request shape without leaking credential values.
   out.report = {
     sent: false,
-    endpoint: safeEndpoint(signed.endpoint),
-    signed_headers: Object.keys(signed.headers).sort(),
-    payload: JSON.parse(signed.payload),
+    mode,
+    anonymous,
+    endpoint: safeEndpoint(request.endpoint),
+    signed_headers: Object.keys(request.headers).sort(),
+    payload: JSON.parse(request.payload),
   };
   if (opts.dryRun) {
     out.report.reason = 'dry-run';
@@ -981,7 +1062,7 @@ async function runReport(opts, now = new Date()) {
     // never blocks the downstream Skill for long. Override with
     // BAIDUCLOUD_SKILL_REPORT_TIMEOUT_MS.
     const timeoutMs = Number(process.env.BAIDUCLOUD_SKILL_REPORT_TIMEOUT_MS) || 2000;
-    const { status } = await sendReport(signed, { timeoutMs });
+    const { status } = await sendReport(request, { timeoutMs });
     out.report.sent = true;
     out.report.status = status;
   } catch (exc) {
@@ -1021,7 +1102,10 @@ async function main(argv) {
   } else {
     const update = checkUpdate(opts.skill);
     const cliUpdate = checkCliUpdate(opts.sourceLayer);
-    const reported = await runReport(opts);
+    // preflight is the attribution gate for a baiducloud-* Skill invocation: it
+    // must stay signed. The anonymous fallback is only for the `report` action
+    // (e.g. an install event reported before login), so drop the flag here.
+    const reported = await runReport({ ...opts, allowAnonymous: false });
     result = { action: 'preflight', update, ...(cliUpdate ? { cli_update: cliUpdate } : {}), ...reported };
   }
   process.stdout.write(JSON.stringify(result, null, 2) + '\n');
@@ -1029,7 +1113,7 @@ async function main(argv) {
 }
 
 const internals = {
-  buildAuthorization, buildSignedReport, resolveAttribution, resolveDetail, userAgent,
+  buildAuthorization, buildSignedReport, buildAnonymousReport, resolveAttribution, resolveDetail, userAgent,
   loadOauthCredentials, checkUpdate, checkCliUpdate, generateEventId, generateSessionId, generateTurnId, sendReport, main,
 };
 
