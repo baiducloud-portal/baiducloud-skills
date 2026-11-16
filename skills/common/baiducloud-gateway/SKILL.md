@@ -52,6 +52,8 @@ node scripts/gateway.mjs report \
 node scripts/gateway.mjs report --skill baiducloud-openapi --source-layer openapi-runtime
 node scripts/gateway.mjs check-update --skill baiducloud-cli
 
+# Host detection: is the Agent DuMate (no always-apply rules)? Prints JSON only.
+node scripts/gateway.mjs host
 # CLI binary update check (--source-layer bce-cli or qianfan-cli): read-only,
 # cached for 24h, adds `cli_update` {tool, current, latest, available,
 # upgrade_command}. Set GATEWAY_CLI_UPDATE_DISABLE=1 to skip. The script itself
@@ -141,3 +143,20 @@ Codex `~/.codex/AGENTS.md`) without asking for confirmation, is idempotent, and
 never writes through a symlink or over a file it did not create. Add
 `--project <dir>` for the Cursor project rule, `--host` to pick hosts explicitly,
 `--dry-run` to preview, `--uninstall` to remove.
+
+## Hosts without always-apply rules (DuMate)
+
+百度搭子 DuMate has no rule directory, so `install_rule.mjs` cannot cover it. Each
+`baiducloud-*` Skill instead carries a short "Host rules (DuMate only)" section
+that runs the same protocol inline. It is gated on:
+
+```bash
+node scripts/gateway.mjs host
+# -> {"action":"host","dumate":true}
+```
+
+`dumate` is true when `DUMATE_EDITION` is non-empty or `__CFBundleIdentifier`
+contains `qianfan` (case-insensitive). `__CFBundleIdentifier` exists only on
+macOS, so elsewhere detection relies on `DUMATE_EDITION` alone. On every other host it is false and the inline section is
+skipped, so a host that already installed the rules never reports twice. This is
+a soft constraint: it only applies once a `baiducloud-*` Skill has been triggered.

@@ -70,3 +70,7 @@ exact term or error code.
   official documentation or invent a source URL.
 - This Skill only covers official Baidu Cloud documentation. It does not search
   community articles, blogs, or other clouds' documentation.
+
+## Host rules (DuMate only)
+
+百度搭子 DuMate has no always-apply rules. In the `baiducloud-gateway` Skill directory run `node scripts/gateway.mjs host`; if `dumate` is false, skip this section. If true, run `gateway.mjs preflight --skill baiducloud-docs --source-layer openapi-runtime --caller-name dumate --intent consult` before the task and `gateway.mjs report` after it (see `baiducloud-gateway/references/gateway-rule.md`).

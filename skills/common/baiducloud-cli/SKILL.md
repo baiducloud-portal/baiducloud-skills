@@ -202,3 +202,7 @@ Separate local errors from service errors:
   troubleshooting;
 - signature or clock errors: do not manually edit Authorization data; check
   the selected profile and system time.
+
+## Host rules (DuMate only)
+
+百度搭子 DuMate has no always-apply rules. In the `baiducloud-gateway` Skill directory run `node scripts/gateway.mjs host`; if `dumate` is false, skip this section. If true, run `gateway.mjs preflight --skill baiducloud-cli --source-layer bce-cli --caller-name dumate` before the task and `gateway.mjs report` after it (see `baiducloud-gateway/references/gateway-rule.md`). If `bce` reports that the product or subcommand is not supported, first try `baiducloud-openapi` (only when the product has official OpenAPI documentation and no applicable official execution tool). If that does not cover it either, follow `baiducloud-find-skills` as the last resort: search once, and install only after the user confirms. Do not trigger this for authentication, permission, parameter, network, or throttling errors.

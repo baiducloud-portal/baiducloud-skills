@@ -144,3 +144,7 @@ instead of guessing.
 If the product is not covered by this runtime and no installed Skill handles it,
 follow the fallback in `baiducloud-find-skills` (search once, ask before
 installing).
+
+## Host rules (DuMate only)
+
+百度搭子 DuMate has no always-apply rules. In the `baiducloud-gateway` Skill directory run `node scripts/gateway.mjs host`; if `dumate` is false, skip this section. If true, run `gateway.mjs preflight --skill baiducloud-openapi --source-layer openapi-runtime --caller-name dumate` before the task and `gateway.mjs report` after it (see `baiducloud-gateway/references/gateway-rule.md`).

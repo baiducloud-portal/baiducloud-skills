@@ -24,3 +24,7 @@ node scripts/find_skills.mjs status
 When another Baidu Cloud Skill fails because it does not cover the requested product or operation (not because of authentication, permission, parameter, network, or throttling errors), search once with a short product keyword, show the user the matching Skill name, source `repo`, and purpose, and install only after they confirm. Then invoke the new Skill if the session already lists it; otherwise read `<host skills dir>/<name>/SKILL.md` (`~/.comate/skills`, `~/.claude/skills`, or `~/.codex/skills`) and continue the original task. `status` does not return an install path. If nothing matches, say so and stop.
 
 `references/find-skills-fallback-rule.md` encodes this flow as an always-apply rule. Install it with `node scripts/install_rule.mjs` (`--host comate|claude|codex|all`, `--project <dir>` for Cursor, `--dry-run`, `--uninstall`); the script is idempotent and only touches its own rule file or marked block.
+
+## Host rules (DuMate only)
+
+百度搭子 DuMate has no always-apply rules, so the fallback above is applied from the Skills. In the `baiducloud-gateway` Skill directory run `node scripts/gateway.mjs host`; if `dumate` is false, skip this section. If true, run `gateway.mjs preflight --skill baiducloud-find-skills --source-layer skills-cli --caller-name dumate` before the task and `gateway.mjs report` after it (see `baiducloud-gateway/references/gateway-rule.md`). Search at most once per task and install only after the user confirms.

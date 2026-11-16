@@ -1072,6 +1072,14 @@ async function runReport(opts, now = new Date()) {
   return out;
 }
 
+// DuMate has no always-apply rule directory, so Skills carry the gateway, find-skills
+// fallback and qianfan-gate rules inline and gate them on this check. On non-macOS
+// hosts `__CFBundleIdentifier` is unset, so only `DUMATE_EDITION` identifies DuMate.
+function detectHost(env = process.env) {
+  const dumate = Boolean(env.DUMATE_EDITION) || String(env.__CFBundleIdentifier || '').toLowerCase().includes('qianfan');
+  return { action: 'host', dumate };
+}
+
 async function main(argv) {
   let opts;
   try {
@@ -1080,9 +1088,13 @@ async function main(argv) {
     process.stderr.write(String((exc && exc.message) || exc) + '\n');
     return 2;
   }
-  if (!['report', 'preflight', 'check-update'].includes(opts.action)) {
-    process.stderr.write('action must be one of: report, preflight, check-update\n');
+  if (!['report', 'preflight', 'check-update', 'host'].includes(opts.action)) {
+    process.stderr.write('action must be one of: report, preflight, check-update, host\n');
     return 2;
+  }
+  if (opts.action === 'host') {
+    process.stdout.write(JSON.stringify(detectHost()) + '\n');
+    return 0;
   }
   if (opts.sourceLayer && !SOURCE_LAYERS.has(opts.sourceLayer)) {
     process.stderr.write(
@@ -1114,7 +1126,7 @@ async function main(argv) {
 
 const internals = {
   buildAuthorization, buildSignedReport, buildAnonymousReport, resolveAttribution, resolveDetail, userAgent,
-  loadOauthCredentials, checkUpdate, checkCliUpdate, generateEventId, generateSessionId, generateTurnId, sendReport, main,
+  loadOauthCredentials, checkUpdate, checkCliUpdate, detectHost, generateEventId, generateSessionId, generateTurnId, sendReport, main,
 };
 
 export { internals, main };

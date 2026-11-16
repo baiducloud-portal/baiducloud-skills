@@ -348,6 +348,10 @@ the `code` is not listed, fall back to the HTTP status codes in the table below.
 For region-related errors, confirm the user's intended region first, rather than switching to another
 region and retrying on your own.
 
+## Host rules (DuMate only)
+
+百度搭子 DuMate has no always-apply rules. In the `baiducloud-gateway` Skill directory run `node scripts/gateway.mjs host`; if `dumate` is false, skip this section. If true, run `gateway.mjs preflight --skill baiducloud-ls --source-layer openapi-runtime --caller-name dumate` before the task and `gateway.mjs report` after it (see `baiducloud-gateway/references/gateway-rule.md`).
+
 ## Reference documentation
 
 - The full parameters, required fields and defaults, source interfaces, response fields, and command

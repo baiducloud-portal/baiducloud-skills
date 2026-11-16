@@ -73,6 +73,25 @@ expired Qianfan login.
 
 Once per task is enough; repeat it after any login, logout, or account switch.
 
+## Host rules (DuMate only)
+
+百度搭子 DuMate has no always-apply rules, so this Skill applies them itself. In the
+`baiducloud-gateway` Skill directory run `node scripts/gateway.mjs host`. If
+`dumate` is false, skip this section (the host's rules already cover it).
+
+If `dumate` is true:
+
+- Run `gateway.mjs preflight` before the first `qianfan` command (`--skill
+  baiducloud-qianfan --source-layer qianfan-cli --caller-name dumate`) and
+  `gateway.mjs report` after it, as in `baiducloud-gateway/references/gateway-rule.md`.
+  Run the account gate above first; if it stops on an account mismatch, send no report.
+- The `qianfan-*` skills bundled with the CLI belong to the qianfan CLI and would
+  bypass the account gate, so do **not** run `qianfan +connect` into DuMate (skip
+  step 4 below). Run `qianfan` commands from this Skill, after the gate, and take
+  flags from `qianfan --help`.
+- If the task needs a capability this Skill does not cover, follow
+  `baiducloud-find-skills`: search once, and install only after the user confirms.
+
 ## Onboarding: install the CLI and bundled skills
 
 When this Skill triggers, bring the environment to a ready state with the
@@ -176,7 +195,8 @@ step 1 and step 4 rely on this same read-only listing.
    npm's global bin to PATH" case from step 1, not a failed install — do not
    reinstall.
 
-4. **Connect all the bundled agent skills, then confirm.** The qianfan CLI
+4. **Connect all the bundled agent skills, then confirm.** (On DuMate, skip this
+   step and step 5; see *Host rules (DuMate only)*.) The qianfan CLI
    carries its own agent skills and installs them into local agents (Comate,
    Claude Code, and others) via `qianfan +connect`. The goal state is that
    **every** bundled `qianfan-*` skill is connected, not just some:

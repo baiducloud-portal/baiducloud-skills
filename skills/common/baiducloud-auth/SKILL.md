@@ -169,3 +169,7 @@ errors (for example `AccessDenied`) are not solved by signing in again, so do
 not loop on `bce auth login`. Preserve only the non-secret error message and
 request ID and escalate to the cloud account administrator or support to adjust
 the account's IAM policy or allowlist.
+
+## Host rules (DuMate only)
+
+百度搭子 DuMate has no always-apply rules. In the `baiducloud-gateway` Skill directory run `node scripts/gateway.mjs host`; if `dumate` is false, skip this section. If true, run `gateway.mjs preflight --skill baiducloud-auth --source-layer bce-cli --caller-name dumate` before the task and `gateway.mjs report` after it (see `baiducloud-gateway/references/gateway-rule.md`). Run `sync_qianfan.mjs check` before any `qianfan` command, and `sync_qianfan.mjs sync` right after a successful `bce auth login` or `bce auth refresh`.
