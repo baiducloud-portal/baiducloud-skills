@@ -3,13 +3,14 @@
 ## 概述
 
 千帆（Qianfan）是百度的大模型平台。Qianfan CLI（`qianfan` 命令）把千帆的模型
-发现、文本推理、套餐（profile）与默认模型绑定、用量统计和诊断能力封装成 Agent
-可调用的工具箱。CLI 本身闭源发布（通过 npm 分发；支持的平台以 README 平台矩阵
-为准），仓库内 `skills/` 目录下的 Agent Skills 文档开放贡献。
+发现、文本推理、文本向量、图像与视频生成、套餐（profile）与默认模型绑定、自定义
+接入点、用量统计和诊断能力封装成 Agent 可调用的工具箱。CLI 本身闭源发布（通过 npm
+分发；支持的平台以 README 平台矩阵为准），仓库内 `skills/` 目录下的 Agent Skills
+文档开放贡献。
 
-本 Skill 只做路由：真正的千帆操作应交给官方 `qianfan` CLI 及其通过
-`qianfan +connect` 安装的自带技能包。命令行为以安装的 CLI `--help` 为准，本索引仅
-作补充。
+本 Skill 是千帆任务的统一入口：先过账号门禁，再交给官方 `qianfan` CLI 执行，不主动
+通过 `qianfan +connect` 安装自带技能包。命令行为以安装的 CLI `--help` 为准，本索引
+仅作补充。
 
 ## 仓库与安装
 
@@ -32,6 +33,10 @@
 - `qianfan models` —— 列出可绑定模型及其 `modelId`。
 - `qianfan profile` —— 套餐切换与默认模型绑定（`profile use`、`profile set-default`）。
 - `qianfan +chat` —— 文本推理与流式输出。
+- `qianfan +embedding` —— 文本向量（可一次传多段）。
+- `qianfan +gen` —— 文生图。
+- `qianfan +video` —— 视频生成（异步任务，`--task` 查询、`--wait` 轮询）。
+- `qianfan endpoint` —— 自定义接入点管理（预置服务、创建、查询、修改、停用与限流）。
 - `qianfan service usage` —— 调用量与 token 消耗统计。
 - `qianfan doctor` —— 只读体检与连通性诊断。
 - `qianfan +connect` —— 安装 / 列出 / 卸载自带 Agent Skills。
@@ -40,7 +45,8 @@
 
 `qianfan +connect` 会把千帆自带的 `qianfan-*` 技能包安装到本机 Agent（Comate /
 Claude Code 等）。这些技能只编排 `qianfan` 命令，不读取本地凭证、不直接调用千帆
-HTTP 接口。本仓不复制其内容，优先使用并保持这些自带技能为最新。
+HTTP 接口。`baiducloud-qianfan` 不主动安装它们（它们不经过账号门禁）；用户自行安装的
+可以沿用，不阻止也不卸载。
 
 ## 全局参数
 

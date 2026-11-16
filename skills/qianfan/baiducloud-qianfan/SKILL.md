@@ -1,6 +1,6 @@
 ---
 name: baiducloud-qianfan
-description: Route Baidu Qianfan (千帆) large-model platform tasks to the official qianfan CLI and its bundled skills (qianfan +connect). Trigger for 千帆 / Qianfan model discovery, inference/chat, plan and default-model binding, usage, or diagnostics, or mentions of qianfan, qianfan +chat, qianfan +connect, or qianfan-cli. Do not route Qianfan inference through bce-cli, bcecmd, or baiducloud-openapi.
+description: Single entry point for Baidu Qianfan (千帆) large-model platform tasks; use it before any qianfan-* skill. Routes work to the official qianfan CLI after the account gate. Trigger for 千帆 / Qianfan model discovery, inference/chat, embedding, image or video generation, plan and default-model binding, custom endpoints, usage, or diagnostics, or mentions of qianfan, qianfan +chat, or qianfan-cli. Do not route Qianfan inference through bce-cli, bcecmd, or baiducloud-openapi.
 ---
 
 # BaiduCloud Qianfan
@@ -12,11 +12,11 @@ as the source of truth for Qianfan command names, parameters, authentication,
 signing, and service behavior. Qianfan is not a `bce-cli` service and does not
 use the BOS `bcecmd` client.
 
-This Skill is a thin router. The qianfan CLI already ships a maintained suite of
-agent skills (auth, chat, models, profile, service, doctor) that are installed
-with `qianfan +connect`. Do not duplicate that logic here; direct the user to
-install and use the official CLI and its bundled skills, and keep the boundary
-with the rest of this marketplace clear.
+This Skill is the single entry point for Qianfan tasks. It routes work to the
+official CLI after the account gate below, and takes command names and flags from
+`qianfan --help`. It does not install the CLI's bundled `qianfan-*` skills (see
+*Bundled `qianfan-*` skills*). Keep the boundary with the rest of this marketplace
+clear.
 
 ## When to use Qianfan vs other Skills
 
@@ -85,14 +85,13 @@ If `dumate` is true:
   baiducloud-qianfan --source-layer qianfan-cli --caller-name dumate`) and
   `gateway.mjs report` after it, as in `baiducloud-gateway/references/gateway-rule.md`.
   Run the account gate above first; if it stops on an account mismatch, send no report.
-- The `qianfan-*` skills bundled with the CLI belong to the qianfan CLI and would
-  bypass the account gate, so do **not** run `qianfan +connect` into DuMate (skip
-  step 4 below). Run `qianfan` commands from this Skill, after the gate, and take
-  flags from `qianfan --help`.
+- The `qianfan-*` skills bundled with the CLI would bypass the account gate on
+  DuMate, so do not run `qianfan +connect` into DuMate. Run `qianfan` commands
+  from this Skill, after the gate, and take flags from `qianfan --help`.
 - If the task needs a capability this Skill does not cover, follow
   `baiducloud-find-skills`: search once, and install only after the user confirms.
 
-## Onboarding: install the CLI and bundled skills
+## Onboarding: install the CLI
 
 When this Skill triggers, bring the environment to a ready state with the
 following ordered flow. It is confirm-gated: detect first, then propose each
@@ -116,14 +115,6 @@ README's platform matrix):
   that merely happens to be named `qianfan`, so it must be checked. It defends
   against an accidental name collision, not against an adversarial binary that
   deliberately prints the official banner.
-
-**Listing the bundled skills (read-only).** A separate check from the two
-signals above: run the list subcommand of `qianfan +connect` (take its exact
-name/flags from `qianfan +connect --help`; a bare `qianfan +connect` may
-connect/install, so do not use it to list). Do not hardcode the skill names —
-enumerate from the CLI. Depending on the CLI version the output may expose the
-full available set plus which are connected, or only the connected ones; both
-step 1 and step 4 rely on this same read-only listing.
 
 1. **Detect (read-only, run immediately).** Run the two identification commands
    and apply *Positive identification* above:
@@ -157,13 +148,8 @@ step 1 and step 4 rely on this same read-only listing.
      order or remove/rename the shadowing entry, then re-check. If `npm ls -g`
      does not list it, surface the name conflict to the user first; only after
      they decide, proceed to the confirm-gated install of the official package.
-   - A `qianfan` runs and its banner is the official CLI: it is installed. Run
-     the read-only *Listing the bundled skills* check — no connecting here. If
-     the CLI exposes the full available set and **all** bundled `qianfan-*`
-     skills are already connected, skip onboarding and go straight to the task.
-     If any are missing — or the CLI reports only connected skills, so
-     completeness cannot be confirmed read-only — continue to step 4 and let its
-     idempotent connect settle it.
+   - A `qianfan` runs and its banner is the official CLI: it is installed. Skip
+     onboarding and go straight to the task.
 
 2. **Install the official npm package, then confirm.** If the official package
    is missing, direct the user to the official
@@ -195,43 +181,18 @@ step 1 and step 4 rely on this same read-only listing.
    npm's global bin to PATH" case from step 1, not a failed install — do not
    reinstall.
 
-4. **Connect all the bundled agent skills, then confirm.** (On DuMate, skip this
-   step and step 5; see *Host rules (DuMate only)*.) The qianfan CLI
-   carries its own agent skills and installs them into local agents (Comate,
-   Claude Code, and others) via `qianfan +connect`. The goal state is that
-   **every** bundled `qianfan-*` skill is connected, not just some:
+## Bundled `qianfan-*` skills
 
-   - **Enumerate + detect (read-only):** run the *Listing the bundled skills*
-     check to see the bundled skills and which are already connected (reuse the
-     listing from step 1's final branch if it is still valid rather than
-     repeating it).
-   - **Diff (when the listing supports it):** if the list output distinguishes
-     the full available set from the connected set, compare them to find any
-     missing. If the CLI only reports connected skills (no full available list)
-     and names must not be hardcoded, skip the explicit diff and instead rely on
-     the connect action below.
-   - **Connect all (confirm-gated):** if any are missing, none are connected, or
-     completeness could not be confirmed by listing, running `qianfan +connect`
-     changes local state, so follow the confirm-then-execute rule in
-     [Safe execution](#safe-execution): preview the intent (use `--dry-run` if
-     supported), confirm, then run it once; do not add `-y/--yes` for the user.
-     Connect the full set, not a subset. Observe this run's output: if it reports
-     that nothing was added, the set was already complete.
-   - **Verify:** if the CLI exposes the full available set, re-list with the same
-     read-only list subcommand from the Enumerate step (not a bare
-     `qianfan +connect`, which may connect/install) and confirm every bundled
-     `qianfan-*` skill is present. If it only reports connected skills, do not
-     trigger a second confirm-gated connect just to verify — read completeness
-     from the Connect-all run's output above (nothing added = already complete).
+The CLI can install its own `qianfan-*` agent skills with `qianfan +connect`.
+This Skill does not run it and does not recommend it: the commands below are
+enough, and the bundled skills do not pass through the account gate.
 
-5. **Reload, then defer to the bundled skills.** Newly connected `qianfan-*`
-   skills usually need a new session or a host-agent reload before they are
-   picked up. Afterward, prefer these bundled skills for actual Qianfan
-   operations (login, model discovery, plan and default-model binding,
-   inference, usage, diagnostics). They orchestrate `qianfan` commands only;
-   they do not read local credentials or call Qianfan HTTP APIs directly. This
-   Skill does not restate their contents; re-run the step 4 detect/connect flow
-   to keep the full set installed and current.
+If the user asks for `qianfan +connect`, or the bundled skills are already
+installed, do not block or uninstall them. Start the task here, run the account
+gate first, and let the bundled skills help with details afterwards. Installing
+or uninstalling them changes local state, so use the confirm-then-execute rule in
+[Safe execution](#safe-execution) (`--dry-run` first, no `-y/--yes` on the
+user's behalf).
 
 ## Command entry points
 
@@ -244,9 +205,21 @@ use):
 - `qianfan profile` - list/switch plans (profiles) and bind a default model per
   model type (`profile use`, `profile set-default`).
 - `qianfan +chat` - text inference and streaming output.
+- `qianfan +embedding` - turn one or more texts into vectors.
+- `qianfan +gen` - text-to-image generation.
+- `qianfan +video` - video generation. It is an asynchronous task: it returns a
+  `taskId`; query it later with `--task`, or add `--wait` to poll until done.
+- `qianfan endpoint` - list preset services (to get a `serviceId`), and create,
+  query, modify, or disable custom endpoints with RPM/TPM rate limits. `create`
+  needs `--service-id`, `--name`, and `--suffix`, and at least one rate limit;
+  `modify` needs at least one field to change.
 - `qianfan service usage` - call counts and token consumption over a time range.
 - `qianfan doctor` - read-only health check and connectivity diagnostics.
 - `qianfan +connect` - install, list, or uninstall the bundled agent skills.
+
+`+chat`, `+embedding`, `+gen`, and `+video` fall back to the default model bound
+for their model type (`chat`, `embedding`, `image`, `video`) when `--model` is
+not given. Bind one with `qianfan profile set-default --model-type <type>`.
 
 For a typical end-to-end task, let the CLI chain the steps rather than
 hand-crafting requests, for example:

@@ -61,3 +61,8 @@ contents of `~/.bce/oauth` or `~/.qianfan`. Account ids appear masked in the
 script output; keep them masked.
 
 Do not run the check for pure Q&A that does not execute any `qianfan` command.
+
+For Qianfan tasks, start from the `baiducloud-qianfan` Skill when it is installed,
+then decide whether a `qianfan-*` Skill is needed for details. Do not run
+`qianfan +connect` on your own; it only installs `qianfan-*` Skills that bypass
+this check.

@@ -125,7 +125,7 @@
     {
       "name": "baiducloud-qianfan",
       "domain": "qianfan",
-      "summary": "Route Baidu Qianfan large-model platform tasks to the official qianfan CLI and its bundled skills",
+      "summary": "Single entry point for Baidu Qianfan large-model platform tasks, routed to the official qianfan CLI after the account gate",
       "keywords": [
         "qianfan",
         "千帆",
@@ -136,7 +136,10 @@
         "model",
         "profile",
         "usage",
-        "connect"
+        "embedding",
+        "image",
+        "video",
+        "endpoint"
       ]
     }
   ],
