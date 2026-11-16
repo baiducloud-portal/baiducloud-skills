@@ -64,12 +64,12 @@ reports `auto_synced: true`; tell the user it happened.
   Never log out or switch accounts on the user's behalf.
 - Any other failure: report it and continue only if the user agrees.
 
-If a `qianfan` command later reports that the login expired ("登录已过期",
-`login expired`, or `CREDENTIAL_NOT_FOUND`), do not ask: run
-`sync_qianfan.mjs sync` through `baiducloud-auth`. It renews the bce credentials
-with `bce auth refresh` when needed, then renews the Qianfan login, and you retry
-the failed command once. `check` does the same proactively when it sees an
-expired Qianfan login.
+If a `qianfan` command later reports that Qianfan is not logged in or the login
+expired ("登录已过期", "未登录", `login expired`, `not logged in`, or
+`CREDENTIAL_NOT_FOUND`), do not ask: run `sync_qianfan.mjs sync` through
+`baiducloud-auth`. It renews the bce credentials with `bce auth refresh` when
+needed, then logs in or renews Qianfan from bce, and you retry the failed command
+once. `check` does the same proactively when it sees an expired Qianfan login.
 
 Once per task is enough; repeat it after any login, logout, or account switch.
 
@@ -256,8 +256,14 @@ manually.
 Separate local CLI issues from Qianfan service issues:
 
 - missing command or unknown operation: inspect installation and `--help`;
-- authentication errors (for example `CREDENTIAL_NOT_FOUND`, `AUTH_FAILED`,
-  `LOGIN_FAILED`): run `qianfan auth` to check or renew login state;
+- missing or expired login (`CREDENTIAL_NOT_FOUND`, "未登录", `not logged in`,
+  "登录已过期", `login expired`): prefer the bce login. Run
+  `sync_qianfan.mjs sync` through `baiducloud-auth`, then retry the command once.
+  Ask the user to run `bce auth login` only if `sync` fails because bce is not
+  logged in or its refresh failed. Use `qianfan auth login` only as a last resort;
+- `AUTH_FAILED` or `LOGIN_FAILED`: run `sync` once as above and retry once. If it
+  still fails it may be a permission or account problem, so report it instead of
+  looping. An account mismatch (exit 4) always stops, see *Account gate*;
 - inference reports a missing default model (`MODEL_NOT_CONFIGURED`): use
   `qianfan models list` then `qianfan profile set-default`;
 - unclear or multi-symptom failures: run `qianfan doctor` (optionally with a

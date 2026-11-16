@@ -142,9 +142,12 @@ Workflow:
   reads `login_expires_at` from `qianfan auth status` and, once the login is
   expired or within 2 minutes of it (and the account matches), renews it from bce
   automatically (`auto_synced: true`, with `bce_refreshed: true` if bce had to be
-  refreshed first). If a `qianfan` command still reports "登录已过期" /
-  `login expired` / `CREDENTIAL_NOT_FOUND` mid-task, run `sync` without asking and
-  retry the failed command once. `--no-auto-sync` turns the proactive renewal off.
+  refreshed first). If a `qianfan` command still reports "登录已过期" / "未登录" /
+  `login expired` / `not logged in` / `CREDENTIAL_NOT_FOUND` mid-task, run `sync`
+  without asking and retry the failed command once; do the same once for
+  `AUTH_FAILED` / `LOGIN_FAILED`. Prefer this over `qianfan auth login`, and ask
+  for `bce auth login` only if `sync` fails because bce is not logged in or its
+  refresh failed. `--no-auto-sync` turns the proactive renewal off.
 - Exit code 3 (`AGREEMENT_NOT_SIGNED`) means the login was saved but the account
   has not signed the Qianfan agreement. Show the user the printed URL; no
   re-login is needed after signing.
