@@ -21,7 +21,7 @@ import process from 'node:process';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-// Default reporting endpoint. Override with BAIDUCLOUD_SKILLS_TELEMETRY_ENDPOINT.
+// Fixed reporting endpoint (not configurable).
 // MUST stay on an allowed Baidu Cloud host so request signing and the host
 // allowlist below keep working.
 const DEFAULT_ENDPOINT = 'https://cloud.baidu.com/api/baiducloud_skill/behavior';
@@ -149,8 +149,8 @@ function canonicalUri(pathValue) {
 }
 
 // Canonicalize the query string the same way as openapi_runtime: decode each
-// key/value, re-encode, and sort the resulting pairs. The reporting endpoint
-// is operator-overridable and may carry a query, so this must stay correct.
+// key/value, re-encode, and sort the resulting pairs, so the signature stays
+// correct for any query the endpoint carries.
 function canonicalQuery(query) {
   if (!query) {
     return '';
@@ -246,18 +246,6 @@ function isGlobalIp(address) {
     return false;
   }
   return true;
-}
-
-// Loopback hosts allowed only in dev mode so the gateway can post to a local
-// report_sink.mjs for self-testing (localhost / 127.0.0.0/8 / ::1). Matches the
-// literal hostname only (not ::ffff:127.x mapped forms); strips IPv6 brackets
-// so a `[::1]` endpoint is recognized.
-function isLoopbackHost(host) {
-  const h = host.replace(/\.+$/, '').replace(/^\[|\]$/g, '').toLowerCase();
-  if (h === 'localhost' || h === '::1') {
-    return true;
-  }
-  return net.isIP(h) === 4 && inV4Net(ipv4ToInt(h), '127.0.0.0', 8);
 }
 
 function hmacHex(key, message) {
@@ -446,14 +434,16 @@ function pickToken(value, fallback, name, ignored) {
 // Free-form inputs are restricted to safe tokens/enums so user text cannot be
 // smuggled into the report.
 function resolveAttribution(opts, ignored = []) {
-  const callerType = opts.callerType || process.env.BAIDUCLOUD_SKILL_CALLER_TYPE || 'ai_agent';
-  const callerName = pickToken(
-    opts.callerName || process.env.BAIDUCLOUD_SKILL_CALLER_NAME, 'unknown', 'caller_name', ignored,
+  const callerType = opts.callerType || 'ai_agent';
+  // DuMate is detected from the environment, so the host name never depends on the
+  // Agent remembering to pass --caller-name.
+  const callerName = detectHost().dumate ? 'dumate' : pickToken(
+    opts.callerName, 'unknown', 'caller_name', ignored,
   );
   const skillName = pickToken(
-    opts.skill || process.env.BAIDUCLOUD_SKILL_SKILL_NAME, '', 'skill_name', ignored,
+    opts.skill, '', 'skill_name', ignored,
   );
-  let sourceLayer = opts.sourceLayer || process.env.BAIDUCLOUD_SKILL_SOURCE_LAYER || '';
+  let sourceLayer = opts.sourceLayer || '';
   if (sourceLayer && !SOURCE_LAYERS.has(sourceLayer)) {
     ignored.push('source_layer');
     sourceLayer = '';
@@ -567,39 +557,24 @@ function userAgent() {
   return UA_PRODUCT;
 }
 
-function endpointOf() {
-  return process.env.BAIDUCLOUD_SKILLS_TELEMETRY_ENDPOINT || DEFAULT_ENDPOINT;
-}
-
 // Strip any user:pass@ userinfo before echoing an endpoint to stdout so a
 // password mistakenly placed in the configured URL is never printed.
 function safeEndpoint(url) {
   return String(url).replace(/(\/\/)[^/]*@/, '$1');
 }
 
-// Dev opt-in: allow posting to a local report_sink.mjs over http on a loopback
-// host for self-testing. Off by default; never relaxes anything in normal use.
-function reportDev() {
-  return process.env.BAIDUCLOUD_SKILL_REPORT_DEV === '1';
-}
-
 // Assemble the signed POST for the attribution report. Returns {skipped} when
 // the endpoint is unusable or credentials are unavailable (reporting is then
 // skipped, never forced).
-function buildSignedReport(attr, now = new Date(), { allowRenew = true, detail = {} } = {}) {
-  const endpoint = endpointOf();
-  const dev = reportDev();
+function buildSignedReport(
+  attr, now = new Date(), { allowRenew = true, detail = {}, endpoint = DEFAULT_ENDPOINT } = {},
+) {
   const parsed = urlsplit(endpoint);
   const scheme = parsed.scheme.toLowerCase();
-  // Normal rule: https on an allowlisted Baidu Cloud host. Dev rule: http(s) on
-  // a loopback host, only when BAIDUCLOUD_SKILL_REPORT_DEV=1.
-  const normalOk = scheme === 'https' && hostAllowed(parsed.hostname);
-  const devOk = dev && (scheme === 'http' || scheme === 'https') && isLoopbackHost(parsed.hostname);
-  if (parsed.username || parsed.password || (!normalOk && !devOk)) {
-    const need = dev
-      ? 'endpoint must be an https Baidu Cloud host, or a loopback http(s) host in dev mode, without userinfo'
-      : 'endpoint must be an https Baidu Cloud host without userinfo';
-    return { skipped: need, endpoint };
+  // The endpoint is fixed to the shipped default; the argument exists only so
+  // tests can exercise the guard. Rule: https on an allowlisted Baidu Cloud host.
+  if (parsed.username || parsed.password || scheme !== 'https' || !hostAllowed(parsed.hostname)) {
+    return { skipped: 'endpoint must be an https Baidu Cloud host without userinfo', endpoint };
   }
   const credentials = loadOauthCredentials(now, { allowRenew });
   if (!credentials) {
@@ -626,10 +601,10 @@ function buildSignedReport(attr, now = new Date(), { allowRenew = true, detail =
   const body = Buffer.from(payload, 'utf8');
   const timestamp = isoTimestamp(now);
   // Host must equal what undici will send: hostname, plus a port only when it
-  // is not the scheme default (443 for https, 80 for http). This keeps the
+  // is not the https default (443). This keeps the
   // signed `host` header aligned with the actual request.
   const port = parsed.portRaw;
-  const defaultPort = scheme === 'http' ? '80' : '443';
+  const defaultPort = '443';
   const hostHeader = port && port !== defaultPort ? `${parsed.hostname}:${port}` : parsed.hostname;
   const headers = {
     Host: hostHeader,
@@ -647,7 +622,7 @@ function buildSignedReport(attr, now = new Date(), { allowRenew = true, detail =
     { secretAccessKey: credentials.secret_access_key, accessKeyId: credentials.access_key_id },
     timestamp,
   );
-  return { endpoint, hostname: parsed.hostname, local: devOk, headers, body, payload };
+  return { endpoint, hostname: parsed.hostname, headers, body, payload };
 }
 
 // Assemble an UNSIGNED POST for the attribution report. Used only as an opt-in
@@ -660,21 +635,14 @@ function buildSignedReport(attr, now = new Date(), { allowRenew = true, detail =
 // absent: it cannot be derived without a signature, and is never invented.
 //
 // The same endpoint + transport guards apply: https on an allowlisted Baidu
-// Cloud host (or a dev loopback), no userinfo, and a fail-closed DNS
+// Cloud host, no userinfo, and a fail-closed DNS
 // private/reserved-address check before sending. The request carries no
 // Authorization or x-bce-security-token header.
-function buildAnonymousReport(attr, now = new Date(), { detail = {} } = {}) {
-  const endpoint = endpointOf();
-  const dev = reportDev();
+function buildAnonymousReport(attr, now = new Date(), { detail = {}, endpoint = DEFAULT_ENDPOINT } = {}) {
   const parsed = urlsplit(endpoint);
   const scheme = parsed.scheme.toLowerCase();
-  const normalOk = scheme === 'https' && hostAllowed(parsed.hostname);
-  const devOk = dev && (scheme === 'http' || scheme === 'https') && isLoopbackHost(parsed.hostname);
-  if (parsed.username || parsed.password || (!normalOk && !devOk)) {
-    const need = dev
-      ? 'endpoint must be an https Baidu Cloud host, or a loopback http(s) host in dev mode, without userinfo'
-      : 'endpoint must be an https Baidu Cloud host without userinfo';
-    return { skipped: need, endpoint };
+  if (parsed.username || parsed.password || scheme !== 'https' || !hostAllowed(parsed.hostname)) {
+    return { skipped: 'endpoint must be an https Baidu Cloud host without userinfo', endpoint };
   }
   const payload = JSON.stringify({
     caller_type: attr.caller_type,
@@ -690,7 +658,7 @@ function buildAnonymousReport(attr, now = new Date(), { detail = {} } = {}) {
   });
   const body = Buffer.from(payload, 'utf8');
   const port = parsed.portRaw;
-  const defaultPort = scheme === 'http' ? '80' : '443';
+  const defaultPort = '443';
   const hostHeader = port && port !== defaultPort ? `${parsed.hostname}:${port}` : parsed.hostname;
   // No Authorization, no x-bce-security-token: this is the unsigned variant.
   const headers = {
@@ -701,7 +669,7 @@ function buildAnonymousReport(attr, now = new Date(), { detail = {} } = {}) {
     'x-bce-date': isoTimestamp(now),
     'x-bce-content-sha256': crypto.createHash('sha256').update(body).digest('hex'),
   };
-  return { endpoint, hostname: parsed.hostname, local: devOk, headers, body, payload, anonymous: true };
+  return { endpoint, hostname: parsed.hostname, headers, body, payload, anonymous: true };
 }
 
 // Fail-closed DNS guard for the outbound report (signed or anonymous): resolve
@@ -725,11 +693,8 @@ async function assertGlobalEndpoint(hostname, lookup) {
 
 async function sendReport(signed, { timeoutMs = 5000, lookup = null } = {}) {
   // Fail-closed: never ship the STS-bearing request to a private/reserved or
-  // unresolvable target, even if the host passed the suffix allowlist. In dev
-  // mode a loopback endpoint (signed.local) is intentionally exempt.
-  if (!signed.local) {
-    await assertGlobalEndpoint(signed.hostname, lookup);
-  }
+  // unresolvable target, even if the host passed the suffix allowlist.
+  await assertGlobalEndpoint(signed.hostname, lookup);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   // undici (Node's fetch) manages Host and Content-Length itself and rejects
@@ -989,12 +954,8 @@ function parseArgs(argv) {
   return opts;
 }
 
-function reportDisabled() {
-  return process.env.BAIDUCLOUD_SKILL_REPORT_DISABLE === '1';
-}
-
 // Run the attribution report. Always fail-open: returns a result object and
-// never throws. When dry-run or disabled, the signed request is assembled (so
+// never throws. When dry-run, the signed request is assembled (so
 // callers/tests can inspect it) but not sent.
 async function runReport(opts, now = new Date()) {
   const ignored = [];
@@ -1015,10 +976,6 @@ async function runReport(opts, now = new Date()) {
   if (ignored.length) {
     // Names only (never values): tells the caller which inputs were rejected.
     out.ignored_fields = [...new Set(ignored)];
-  }
-  if (reportDisabled()) {
-    out.report = { sent: false, reason: 'reporting disabled by BAIDUCLOUD_SKILL_REPORT_DISABLE' };
-    return out;
   }
   // dry-run must stay side-effect free: do not renew (which would rotate the
   // local STS state) when only assembling the request for inspection.
@@ -1059,9 +1016,8 @@ async function runReport(opts, now = new Date()) {
   }
   try {
     // Best-effort telemetry: bound the wait so a slow/unreachable endpoint
-    // never blocks the downstream Skill for long. Override with
-    // BAIDUCLOUD_SKILL_REPORT_TIMEOUT_MS.
-    const timeoutMs = Number(process.env.BAIDUCLOUD_SKILL_REPORT_TIMEOUT_MS) || 2000;
+    // never blocks the downstream Skill for long.
+    const timeoutMs = 2000;
     const { status } = await sendReport(request, { timeoutMs });
     out.report.sent = true;
     out.report.status = status;

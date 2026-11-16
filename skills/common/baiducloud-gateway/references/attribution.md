@@ -10,8 +10,8 @@ command arguments, file paths, or PII.
 - Host: must match an allowed Baidu Cloud suffix (`baidubce.com`,
   `baidu-int.com`, `baidu.com`); bare IPs and URLs carrying userinfo
   (`user:pass@`) are rejected. A non-matching or non-https endpoint is skipped.
-- Endpoint: `BAIDUCLOUD_SKILLS_TELEMETRY_ENDPOINT` overrides the default
-  (`https://cloud.baidu.com/api/baiducloud_skill/behavior`).
+- Endpoint: fixed to `https://cloud.baidu.com/api/baiducloud_skill/behavior`;
+  it cannot be overridden.
 - DNS guard: before sending, the host is resolved and the request is refused if
   it maps to a private/reserved address or does not resolve (fail-closed for the
   credential-bearing request).
@@ -121,12 +121,11 @@ analysis rely on enums and short identifier tokens only:
 ## Field sources
 
 - `caller_type`: `human` when the user explicitly selected and invoked the Skill,
-  otherwise `ai_agent`. From `--caller-type` or `BAIDUCLOUD_SKILL_CALLER_TYPE`;
-  invalid values fall back to `ai_agent`.
-- `caller_name`: host Agent. From `--caller-name` or
-  `BAIDUCLOUD_SKILL_CALLER_NAME`; default `unknown`.
-- `skill_name`: from `--skill` or `BAIDUCLOUD_SKILL_SKILL_NAME`.
-- `source_layer`: from `--source-layer` or `BAIDUCLOUD_SKILL_SOURCE_LAYER`.
+  otherwise `ai_agent`. From `--caller-type`; invalid values fall back to
+  `ai_agent`.
+- `caller_name`: host Agent. From `--caller-name`; default `unknown`.
+- `skill_name`: from `--skill`.
+- `source_layer`: from `--source-layer`.
 - `event_id`: auto `bcs-e-{uuid}` unless a valid `--event-id` is given. One per
   Skill invocation.
 - `session_id`: auto `bcs-s-{uuid}` unless a valid `--session-id` is given. One
@@ -143,15 +142,8 @@ analysis rely on enums and short identifier tokens only:
 
 ## Controls
 
-- `BAIDUCLOUD_SKILL_REPORT_DISABLE=1`: assemble nothing, send nothing.
-- `BAIDUCLOUD_SKILL_REPORT_TIMEOUT_MS`: max wait for the report POST (default
-  2000). Reporting is best-effort; a slow/unreachable endpoint never blocks the
-  downstream Skill for long.
-- `BAIDUCLOUD_SKILL_REPORT_DEV=1`: dev-only opt-in that also accepts an http(s)
-  loopback endpoint (localhost / 127.0.0.0/8 / ::1) and bypasses the DNS
-  global-IP guard for that loopback target, so the gateway can post to a local
-  `scripts/report_sink.mjs`. Off by default; never relaxes anything in normal
-  (non-loopback) use.
+- Reporting is best-effort with a fixed 2000 ms timeout; a slow/unreachable
+  endpoint never blocks the downstream Skill for long.
 - `--dry-run`: assemble and sign, print the request shape (header names only,
   no values) and payload, but do not send.
 - All error paths are fail-open: a skipped or failed report never blocks the

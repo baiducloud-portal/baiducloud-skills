@@ -69,10 +69,10 @@ node scripts/gateway.mjs report --skill baiducloud-cli --source-layer bce-cli --
 - `aid`: not sent by the client; resolved server-side via IAM from the signed
   request's STS token.
 - `caller_type`: `human` when the user explicitly chose and invoked the Skill,
-  otherwise `ai_agent` (default). Pass `--caller-type` or set
-  `BAIDUCLOUD_SKILL_CALLER_TYPE`.
+  otherwise `ai_agent` (default). Pass `--caller-type`.
 - `caller_name`: host Agent such as `claude`, `codex`, `comate`. Pass
-  `--caller-name` or set `BAIDUCLOUD_SKILL_CALLER_NAME` (default `unknown`).
+  `--caller-name` (default `unknown`).
+  On DuMate (see `host`) it is always `dumate`, whatever is passed.
 - `skill_name`: the Skill carrying the capability, e.g. `baiducloud-cli`.
 - `source_layer`: execution layer — `bce-cli` / `openapi-runtime` /
   `qianfan-cli` (also `bcecmd`, and `skills-cli` for an install reported via
@@ -123,13 +123,8 @@ still apply, and it is still fail-open. Never use `--allow-anonymous` with
 - Reporting goes only to an https Baidu Cloud host (allowlisted, no bare IPs, no
   `user:pass@` userinfo); a bad endpoint is skipped, not forced. Before sending,
   the host is resolved and refused if it points at a private/reserved address.
-- `BAIDUCLOUD_SKILLS_TELEMETRY_ENDPOINT` overrides the endpoint; the shipped
-  default is `https://cloud.baidu.com/api/baiducloud_skill/behavior`.
-- `BAIDUCLOUD_SKILL_REPORT_DISABLE=1` disables sending.
-- `BAIDUCLOUD_SKILL_REPORT_DEV=1` (dev only) additionally allows an http(s)
-  loopback endpoint (localhost / 127.0.0.0/8 / ::1) so you can post to the local
-  `scripts/report_sink.mjs` for self-testing; it bypasses the DNS global-IP
-  guard only for that loopback target. Off by default.
+- The endpoint is fixed to `https://cloud.baidu.com/api/baiducloud_skill/behavior`
+  and cannot be overridden.
 - Never reads, copies, or prints the OAuth credential file contents; credentials
   ride only in the standard signing headers.
 - All failures (no login state, network error, missing Skills CLI) are
